@@ -557,14 +557,12 @@
                     document.getElementById('extractEDel').value = parsed.E_Del || "";
                     document.getElementById('extractPtot').value = parsed.P_tot || "";
                     document.getElementById('extractVavg').value = parsed.V_avg || "";
-
                     document.getElementById('ocrModal').classList.remove('hidden');
                 } else {
-                    alert("เกิดข้อผิดพลาดในการวิเคราะห์ภาพ: " + (data.error || "โปรดลองอีกครั้ง"));
+                    alert("เกิดข้อผิดพลาดจาก AI: " + (data.error || "ไม่สามารถอ่านค่าได้"));
                 }
             } catch (err) {
-                console.error("AI Analysis Error:", err);
-                alert("ไม่สามารถเชื่อมต่อระบบวิเคราะห์ภาพหลังบ้านได้");
+                alert("เกิดข้อผิดพลาดในการส่งภาพ: " + err.message);
             }
         }
 
@@ -574,34 +572,39 @@
 
         async function saveExtractedData(e) {
             e.preventDefault();
-            const btn = document.getElementById('saveBtn');
-            btn.disabled = true;
-            btn.innerText = "กำลังบันทึก...";
+            const saveBtn = document.getElementById('saveBtn');
+            saveBtn.innerText = "กำลังบันทึก...";
+            saveBtn.disabled = true;
 
             const now = new Date();
             const payload = {
-                date: now.toLocaleDateString('th-TH'),
-                time: now.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' }),
+                date: now.toISOString().split('T')[0],
+                time: now.toTimeString().split(' ')[0],
                 e_del: document.getElementById('extractEDel').value,
                 p_tot: document.getElementById('extractPtot').value,
-                v_avg: document.getElementById('extractVavg').value,
-                i_avg: ""
+                v_avg: document.getElementById('extractVavg').value
             };
 
             try {
-                await fetch(SHEET_API_URL, {
+                const response = await fetch(SHEET_API_URL, {
                     method: "POST",
                     headers: { "Content-Type": "text/plain;charset=utf-8" },
                     body: JSON.stringify(payload)
                 });
-                alert("บันทึกข้อมูลเข้า Google Sheets เรียบร้อยแล้ว!");
-                closeOcrModal();
-                fetchSheetData();
+
+                const res = await response.json();
+                if (res.status === "success") {
+                    alert("บันทึกข้อมูลลง Google Sheets สำเร็จ!");
+                    closeOcrModal();
+                    fetchSheetData();
+                } else {
+                    alert("บันทึกไม่สำเร็จ: " + res.message);
+                }
             } catch (err) {
-                alert("เกิดข้อผิดพลาดในการบันทึกข้อมูล");
+                alert("เกิดข้อผิดพลาดในการบันทึก: " + err.message);
             } finally {
-                btn.disabled = false;
-                btn.innerText = "ยืนยัน & ส่งเข้า Google Sheets";
+                saveBtn.innerText = "ยืนยัน & ส่งเข้า Google Sheets";
+                saveBtn.disabled = false;
             }
         }
     </script>
