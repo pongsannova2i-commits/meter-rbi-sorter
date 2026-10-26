@@ -316,7 +316,8 @@
 
     <!-- JavaScript Application Core -->
     <script>
-        const SHEET_API_URL = "https://script.google.com/macros/s/AKfycbwLaADW.../exec"; // <-- ใส่ URL ใหม่ของคุณตรงนี้
+        // ⚠️ วาง Web App URL ตัวเต็มของคุณที่คัดลอกมาจาก Apps Script ตรงนี้ (ห้ามมี ...)
+        const SHEET_API_URL = "https://script.google.com/macros/s/AKfycbwmLaAdWBkVEy9LH2fw7P5ZbBXCyK1ex18KMpVowLQy2lhXV5_y1t-jK8rdmiYPdBZJ/exec";
 
         let meterLogs = [];
         let cumulativeChartInstance = null;
@@ -334,7 +335,6 @@
                 const res = await fetch(SHEET_API_URL);
                 const data = await res.json();
                 if (data && Array.isArray(data) && data.length > 0) {
-                    // แก้ไขตรงนี้ให้นำเข้าข้อมูลทั้งหมดรวมทั้ง 0.00 แถวแรก
                     meterLogs = data.map(item => ({
                         datetime: item.datetime ? String(item.datetime).trim() : '-',
                         eDel: parseFloat(item.edel) || 0,
