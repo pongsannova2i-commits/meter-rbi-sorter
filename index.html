@@ -316,7 +316,7 @@
 
     <!-- JavaScript Application Core -->
     <script>
-        const SHEET_API_URL = "https://script.google.com/macros/s/AKfycbwmLaAdWBkVEy9LH2fw7P5ZbBXCyK1ex18KMpVowLQy2lhXV5_y1t-jK8rdmiYPdBZJ/exec";
+        const SHEET_API_URL = "https://script.google.com/macros/s/AKfycbwLaADW.../exec"; // <-- ใส่ URL ใหม่ของคุณตรงนี้
 
         let meterLogs = [];
         let cumulativeChartInstance = null;
@@ -334,13 +334,14 @@
                 const res = await fetch(SHEET_API_URL);
                 const data = await res.json();
                 if (data && Array.isArray(data) && data.length > 0) {
+                    // แก้ไขตรงนี้ให้นำเข้าข้อมูลทั้งหมดรวมทั้ง 0.00 แถวแรก
                     meterLogs = data.map(item => ({
                         datetime: item.datetime ? String(item.datetime).trim() : '-',
                         eDel: parseFloat(item.edel) || 0,
                         vavg: parseFloat(item.vavg) || 0,
                         iavg: parseFloat(item.iavg) || 0,
                         ptot: parseFloat(item.ptot) || 0
-                    })).filter(item => !isNaN(item.eDel) && item.eDel > 0);
+                    })).filter(item => !isNaN(item.eDel)); 
                 }
             } catch(e) { 
                 console.error("Fetch error:", e); 
