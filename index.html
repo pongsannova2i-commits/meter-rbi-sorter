@@ -59,7 +59,7 @@
         <div class="flex items-center space-x-2">
             <div class="flex items-center bg-slate-900/90 border border-slate-700 rounded-xl px-2.5 py-1 text-xs">
                 <span class="text-slate-400 mr-1.5 font-medium">฿/หน่วย:</span>
-                <input type="number" id="globalUnitPrice" value="6.00" step="0.1" min="0" 
+                <input type="number" id="globalUnitPrice" value="6.00" step="0.1" min="0"
                     class="w-12 bg-slate-800 text-schneider-500 font-bold rounded text-center focus:outline-none"
                     onchange="renderDashboard()">
             </div>
@@ -218,14 +218,14 @@
                 <h3 class="text-sm font-bold text-slate-100 flex items-center gap-2">
                     <i class="fa-solid fa-sliders text-cyan-400"></i> จำลองและประเมินค่าไฟ 24 ชั่วโมง
                 </h3>
-                
+
                 <div class="space-y-4">
                     <div>
                         <div class="flex justify-between text-xs mb-1">
                             <span class="text-slate-300 font-medium"><i class="fa-solid fa-sun text-amber-400"></i> ชั่วโมงใช้งานกลางวัน (30.0 หน่วย/ชม.)</span>
                             <span id="simDayVal" class="text-amber-400 font-bold">10 ชม.</span>
                         </div>
-                        <input type="range" id="simDay" min="0" max="24" value="10" 
+                        <input type="range" id="simDay" min="0" max="24" value="10"
                             class="w-full h-2 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-amber-400"
                             oninput="run24hSimulator()">
                     </div>
@@ -235,7 +235,7 @@
                             <span class="text-slate-300 font-medium"><i class="fa-solid fa-moon text-indigo-400"></i> ชั่วโมงใช้งานกลางคืน (18.1 หน่วย/ชม.)</span>
                             <span id="simNightVal" class="text-indigo-400 font-bold">14 ชม.</span>
                         </div>
-                        <input type="range" id="simNight" min="0" max="24" value="14" 
+                        <input type="range" id="simNight" min="0" max="24" value="14"
                             class="w-full h-2 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-indigo-400"
                             oninput="run24hSimulator()">
                     </div>
@@ -316,7 +316,6 @@
 
     <!-- JavaScript Application Core -->
     <script>
-        // ⚠️ วาง Web App URL ตัวเต็มของคุณที่คัดลอกมาจาก Apps Script ตรงนี้ (ห้ามมี ...)
         const SHEET_API_URL = "https://script.google.com/macros/s/AKfycbwmLaAdWBkVEy9LH2fw7P5ZbBXCyK1ex18KMpVowLQy2lhXV5_y1t-jK8rdmiYPdBZJ/exec";
 
         let meterLogs = [];
@@ -332,19 +331,23 @@
         async function fetchSheetData() {
             if (!SHEET_API_URL) { renderDashboard(); return; }
             try {
-                const res = await fetch(SHEET_API_URL);
+                const res = await fetch(SHEET_API_URL, { method: "GET", redirect: "follow" });
                 const data = await res.json();
-                if (data && Array.isArray(data) && data.length > 0) {
+
+                if (data && data.status === "error") {
+                    console.error("Apps Script Error:", data.message);
+                    alert("ไม่สามารถดึงข้อมูลจาก Google Sheets ได้: " + data.message);
+                } else if (data && Array.isArray(data) && data.length > 0) {
                     meterLogs = data.map(item => ({
                         datetime: item.datetime ? String(item.datetime).trim() : '-',
                         eDel: parseFloat(item.edel) || 0,
                         vavg: parseFloat(item.vavg) || 0,
                         iavg: parseFloat(item.iavg) || 0,
                         ptot: parseFloat(item.ptot) || 0
-                    })).filter(item => !isNaN(item.eDel)); 
+                    })).filter(item => !isNaN(item.eDel));
                 }
-            } catch(e) { 
-                console.error("Fetch error:", e); 
+            } catch(e) {
+                console.error("Fetch error:", e);
             }
             renderDashboard();
         }
@@ -425,7 +428,7 @@
                 tbody.appendChild(tr);
             });
 
-            if(meterLogs.length > 0) {
+            if (meterLogs.length > 0) {
                 const latest = meterLogs[meterLogs.length - 1];
                 const first = meterLogs[0];
                 const fallbackTotalUnits = (latest.eDel - first.eDel) * 1000;
@@ -519,7 +522,7 @@
         function captureCameraPhoto() {
             const video = document.getElementById('webcamVideo');
             const canvas = document.getElementById('hiddenCanvas');
-            canvas.width = video.videoWidth || 640; 
+            canvas.width = video.videoWidth || 640;
             canvas.height = video.videoHeight || 480;
             canvas.getContext('2d').drawImage(video, 0, 0);
             closeCameraModal();
@@ -560,7 +563,7 @@
                     document.getElementById('extractVavg').value = parsed.V_avg || "";
                     document.getElementById('ocrModal').classList.remove('hidden');
                 } else {
-                    alert("เกิดข้อผิดพลาดจาก AI: " + (data.error || "ไม่สามารถอ่านค่าได้"));
+                    alert("เกิดข้อผิดพลาดจาก AI: " + (data.error || data.message || "ไม่สามารถอ่านค่าได้"));
                 }
             } catch (err) {
                 alert("เกิดข้อผิดพลาดในการส่งภาพ: " + err.message);
@@ -578,12 +581,20 @@
             saveBtn.disabled = true;
 
             const now = new Date();
+            const newEDel = parseFloat(document.getElementById('extractEDel').value) || 0;
+            const prevEDel = meterLogs.length > 0 ? meterLogs[meterLogs.length - 1].eDel : newEDel;
+            const unitUsed = Math.max(0, (newEDel - prevEDel) * 1000);
+            const cost = unitUsed * getUnitPrice();
+
             const payload = {
                 date: now.toISOString().split('T')[0],
                 time: now.toTimeString().split(' ')[0],
-                e_del: document.getElementById('extractEDel').value,
+                e_del: newEDel,
                 p_tot: document.getElementById('extractPtot').value,
-                v_avg: document.getElementById('extractVavg').value
+                v_avg: document.getElementById('extractVavg').value,
+                i_avg: 25,
+                unit_used: Math.round(unitUsed * 100) / 100,
+                cost: Math.round(cost * 100) / 100
             };
 
             try {
