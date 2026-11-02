@@ -284,7 +284,7 @@
             <img id="ocrPreview" alt="รูปที่สแกน" class="w-full max-h-48 object-contain rounded-xl bg-black border border-slate-700">
 
             <div id="ocrLoading" class="flex items-center justify-center gap-2 text-xs text-cyan-400 py-1">
-                <i class="fa-solid fa-spinner fa-spin"></i> AI กำลังอ่านค่าจากภาพ...
+                <i class="fa-solid fa-spinner fa-spin"></i> <span id="ocrLoadingText">AI กำลังอ่านค่าจากภาพ...</span>
             </div>
             <div id="ocrWarnings" class="space-y-1 text-[11px]"></div>
 
@@ -625,6 +625,26 @@
             });
         }
 
+        // ส่งคำขอไป Apps Script พร้อม timeout (ไม่ให้รอเงียบไม่รู้จบ)
+        async function postJson(body, ms = 75000) {
+            const ctl = new AbortController();
+            const timer = setTimeout(() => ctl.abort(), ms);
+            try {
+                const res = await fetch(SHEET_API_URL, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'text/plain;charset=utf-8' },   // ไม่ติด preflight
+                    body: JSON.stringify(body),
+                    signal: ctl.signal
+                });
+                return await res.json();
+            } catch (e) {
+                if (e.name === 'AbortError') throw new Error('เซิร์ฟเวอร์ตอบช้าเกิน ' + Math.round(ms / 1000) + ' วินาที ลองใหม่อีกครั้ง หรือกรอกค่าเอง');
+                throw e;
+            } finally {
+                clearTimeout(timer);
+            }
+        }
+
         // ---------- AI Vision ----------
         async function processImage(src) {
             const myId = ++ocrRequestId;
@@ -632,18 +652,16 @@
             $('ocrModal').classList.remove('hidden');
             $('ocrLoading').classList.remove('hidden');
             $('ocrSubmitBtn').disabled = true;
+            const t0 = Date.now();
+            $('ocrLoadingText').textContent = 'AI กำลังอ่านค่าจากภาพ... 0 วิ';
+            const tick = setInterval(() => { $('ocrLoadingText').textContent = 'AI กำลังอ่านค่าจากภาพ... ' + Math.round((Date.now() - t0) / 1000) + ' วิ'; }, 1000);
 
             try {
                 const jpeg = await resizeToJpeg(src);
                 $('ocrPreview').src = jpeg;
                 const base64 = jpeg.split(',')[1];
 
-                const res = await fetch(SHEET_API_URL, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'text/plain;charset=utf-8' },   // ไม่ติด preflight
-                    body: JSON.stringify({ action: 'ocr', image: base64, mime: 'image/jpeg' })
-                });
-                const out = await res.json();
+                const out = await postJson({ action: 'ocr', image: base64, mime: 'image/jpeg' });
                 if (myId !== ocrRequestId) return;   // ผู้ใช้ปิด/สแกนใหม่แล้ว
 
                 if (!out.ok) throw new Error(out.error || 'AI อ่านค่าไม่สำเร็จ');
@@ -658,6 +676,7 @@
                 console.error(err);
                 showWarnings([{ level: 'err', text: 'อ่านค่าอัตโนมัติไม่สำเร็จ: ' + err.message + ' — กรอกค่าด้วยตัวเอง หรือถ่ายภาพใหม่' }]);
             } finally {
+                clearInterval(tick);
                 if (myId === ocrRequestId) {
                     $('ocrLoading').classList.add('hidden');
                     $('ocrSubmitBtn').disabled = false;
@@ -745,12 +764,7 @@
             const btn = $('ocrSubmitBtn');
             btn.disabled = true;
             try {
-                const res = await fetch(SHEET_API_URL, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-                    body: JSON.stringify(payload)
-                });
-                const out = await res.json();
+                const out = await postJson(payload);
                 if (!out.ok) throw new Error(out.error || 'บันทึกไม่สำเร็จ');
                 toast('บันทึกลง Google Sheets เรียบร้อย');
                 closeOcrModal();
