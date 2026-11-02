@@ -36,6 +36,9 @@
         .pulse-active { animation: pulse-ring 2s infinite ease-in-out; }
         .field-warn { border-color: #f59e0b !important; }
         .field-err { border-color: #ef4444 !important; }
+        @keyframes indeterminate { 0% { transform: translateX(-100%); } 100% { transform: translateX(300%); } }
+        .indeterminate-bar { animation: indeterminate 1.4s infinite ease-in-out; }
+        @media (prefers-reduced-motion: reduce) { .indeterminate-bar { animation: none; width: 100%; } }
 
         /* ---- Light theme ---- */
         .light body, body.light-body { background: #f1f5f9; color: #0f172a; }
@@ -60,10 +63,11 @@
             </div>
             <div>
                 <h1 class="font-bold text-base md:text-lg bg-gradient-to-r from-schneider-500 via-emerald-400 to-teal-300 bg-clip-text text-transparent">Schneider PM2200</h1>
-                <p class="text-[11px] text-slate-400 flex items-center gap-1">
-                    <span class="w-2 h-2 rounded-full bg-emerald-400 pulse-active"></span>
-                    AI Vision & Google Sheets Live
-                </p>
+                <button id="syncChip" type="button" onclick="fetchSheetData()" aria-live="polite" title="แตะเพื่อโหลดข้อมูลใหม่"
+                    class="text-[11px] text-slate-400 flex items-center gap-1.5 text-left">
+                    <span id="syncDot" class="w-2 h-2 rounded-full bg-amber-400 pulse-active"></span>
+                    <span id="syncText">กำลังโหลดข้อมูลจากชีต...</span>
+                </button>
             </div>
         </div>
         <div class="flex items-center space-x-2">
@@ -192,7 +196,7 @@
                         <p class="text-[11px] text-slate-400">ซิงค์ข้อมูลสดจาก Google Sheets กลาง</p>
                     </div>
                     <button onclick="fetchSheetData()" class="text-xs text-cyan-400 hover:text-cyan-300 px-3 py-1.5 bg-cyan-500/10 border border-cyan-500/20 rounded-xl flex items-center gap-1">
-                        <i class="fa-solid fa-rotate"></i> โหลดข้อมูลล่าสุด
+                        <i id="refreshIcon" class="fa-solid fa-rotate"></i> โหลดข้อมูลล่าสุด
                     </button>
                 </div>
                 <div class="overflow-x-auto">
@@ -278,38 +282,55 @@
                 <h3 class="text-sm font-bold text-slate-100 flex items-center gap-2">
                     <i class="fa-solid fa-robot text-schneider-500"></i> ผลอ่านค่าโดย AI Vision
                 </h3>
-                <button onclick="closeOcrModal()" aria-label="ปิด" class="text-slate-400 hover:text-white"><i class="fa-solid fa-xmark"></i></button>
+                <button type="button" onclick="closeOcrModal()" aria-label="ปิด" class="text-slate-400 hover:text-white"><i class="fa-solid fa-xmark"></i></button>
             </div>
 
-            <img id="ocrPreview" alt="รูปที่สแกน" class="w-full max-h-48 object-contain rounded-xl bg-black border border-slate-700">
+            <img id="ocrPreview" alt="รูปที่สแกน" class="hidden w-full max-h-48 object-contain rounded-xl bg-black border border-slate-700">
 
-            <div id="ocrLoading" class="flex items-center justify-center gap-2 text-xs text-cyan-400 py-1">
-                <i class="fa-solid fa-spinner fa-spin"></i> <span id="ocrLoadingText">AI กำลังอ่านค่าจากภาพ...</span>
+            <!-- สถานะการทำงาน -->
+            <div id="ocrStatus" role="status" aria-live="polite" class="rounded-xl border px-3 py-2.5 text-xs border-cyan-500/30 bg-cyan-500/5">
+                <div class="flex items-center gap-2">
+                    <i id="ocrStatusIcon" class="fa-solid fa-spinner fa-spin text-cyan-400"></i>
+                    <span id="ocrStatusTitle" class="font-semibold text-slate-100"></span>
+                    <span id="ocrTimer" class="ml-auto tabular-nums text-slate-400">0 วิ</span>
+                </div>
+                <div id="ocrSteps" class="mt-2 flex flex-wrap items-center gap-1.5 text-[10px]"></div>
+                <div id="ocrBarWrap" class="mt-2 h-1.5 rounded-full bg-slate-800 overflow-hidden">
+                    <div class="indeterminate-bar h-full w-1/3 rounded-full bg-schneider-500"></div>
+                </div>
+                <p id="ocrHint" class="mt-2 text-[11px] text-slate-400"></p>
+                <div id="ocrStatusActions" class="mt-2 flex flex-wrap justify-end gap-2">
+                    <button type="button" id="btnRetry" onclick="retryOcr()" class="hidden px-3 py-1.5 rounded-lg bg-cyan-600/20 border border-cyan-500/40 text-cyan-300 text-[11px]">ลองอีกครั้ง</button>
+                    <button type="button" id="btnManual" onclick="manualEntry()" class="px-3 py-1.5 rounded-lg bg-slate-800 border border-slate-700 text-slate-200 text-[11px]">กรอกเอง</button>
+                    <button type="button" id="btnCancelAi" onclick="closeOcrModal()" class="px-3 py-1.5 rounded-lg bg-slate-800 border border-slate-700 text-slate-400 text-[11px]">ยกเลิก</button>
+                </div>
             </div>
             <div id="ocrWarnings" class="space-y-1 text-[11px]"></div>
 
             <form onsubmit="saveExtractedData(event)" class="space-y-3">
-                <div>
-                    <label class="block text-[11px] font-medium text-slate-400 mb-1">E Del (MWh)</label>
-                    <input type="number" step="0.001" id="extractEDel" required oninput="validateForm()" class="w-full bg-slate-950 border border-schneider-500/50 rounded-xl px-3 py-1.5 text-schneider-500 font-extrabold text-sm focus:outline-none">
-                </div>
-                <div class="grid grid-cols-3 gap-2">
+                <fieldset id="ocrFields" class="space-y-3 transition-opacity">
                     <div>
-                        <label class="block text-[11px] font-medium text-slate-400 mb-1">Ptot (kW)</label>
-                        <input type="number" step="0.0001" id="extractPtot" required oninput="validateForm()" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-1.5 text-slate-200 text-xs focus:outline-none">
+                        <label class="block text-[11px] font-medium text-slate-400 mb-1">E Del (MWh)</label>
+                        <input type="number" step="0.001" id="extractEDel" required oninput="validateForm()" class="w-full bg-slate-950 border border-schneider-500/50 rounded-xl px-3 py-1.5 text-schneider-500 font-extrabold text-sm focus:outline-none">
                     </div>
-                    <div>
-                        <label class="block text-[11px] font-medium text-slate-400 mb-1">Vavg (V)</label>
-                        <input type="number" step="0.01" id="extractVavg" required oninput="validateForm()" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-1.5 text-slate-200 text-xs focus:outline-none">
+                    <div class="grid grid-cols-3 gap-2">
+                        <div>
+                            <label class="block text-[11px] font-medium text-slate-400 mb-1">Ptot (kW)</label>
+                            <input type="number" step="0.0001" id="extractPtot" required oninput="validateForm()" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-1.5 text-slate-200 text-xs focus:outline-none">
+                        </div>
+                        <div>
+                            <label class="block text-[11px] font-medium text-slate-400 mb-1">Vavg (V)</label>
+                            <input type="number" step="0.01" id="extractVavg" required oninput="validateForm()" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-1.5 text-slate-200 text-xs focus:outline-none">
+                        </div>
+                        <div>
+                            <label class="block text-[11px] font-medium text-slate-400 mb-1">Iavg (A)</label>
+                            <input type="number" step="0.01" id="extractIavg" required oninput="validateForm()" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-1.5 text-slate-200 text-xs focus:outline-none">
+                        </div>
                     </div>
-                    <div>
-                        <label class="block text-[11px] font-medium text-slate-400 mb-1">Iavg (A)</label>
-                        <input type="number" step="0.01" id="extractIavg" required oninput="validateForm()" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-1.5 text-slate-200 text-xs focus:outline-none">
-                    </div>
-                </div>
+                </fieldset>
                 <p class="text-[10px] text-slate-500">ตรวจเทียบค่ากับรูปด้านบนก่อนกดยืนยันทุกครั้ง</p>
                 <div class="flex justify-end gap-2 pt-1">
-                    <button type="button" onclick="closeOcrModal()" class="px-4 py-2 bg-slate-800 text-slate-300 rounded-xl text-xs">ยกเลิก</button>
+                    <button type="button" id="ocrCancelBtn" onclick="closeOcrModal()" class="px-4 py-2 bg-slate-800 text-slate-300 rounded-xl text-xs">ยกเลิก</button>
                     <button type="submit" id="ocrSubmitBtn" class="px-4 py-2 bg-schneider-600 hover:bg-schneider-500 text-white font-bold rounded-xl text-xs transition disabled:opacity-50">
                         ยืนยัน & ส่งเข้า Google Sheets
                     </button>
@@ -322,7 +343,7 @@
     <canvas id="hiddenCanvas" class="hidden"></canvas>
 
     <script>
-        const SHEET_API_URL = "https://script.google.com/macros/s/AKfycbxAdfVBubmKyVrgKdJMU7MBsjPeJKRPudWD5oyF3cgb_0eVzarYxFIeh64_T2j7cySm/exec";
+        const SHEET_API_URL = "https://script.google.com/macros/s/AKfycbwmLaAdWBkVEy9LH2fw7P5ZbBXCyK1ex18KMpVowLQy2lhXV5_y1t-jK8rdmiYPdBZJ/exec";
         const DEFAULT_DAY_RATE = 30.0, DEFAULT_NIGHT_RATE = 18.1;   // ใช้เมื่อข้อมูลยังไม่พอคำนวณ
         const DAY_START = 6, DAY_END = 18;                          // กลางวัน 06:00-18:00
         const MAX_IMG_WIDTH = 1280;
@@ -372,6 +393,7 @@
 
         // ---------- Data ----------
         async function fetchSheetData() {
+            setSync('loading');
             try {
                 const res = await fetch(SHEET_API_URL);
                 const data = await res.json();
@@ -392,12 +414,17 @@
                     } else {
                         meterLogs.forEach((l, i) => l._t = times[i]);
                     }
+                    setSync('ok', meterLogs.length);
                 } else if (data && (data.message || data.error)) {
                     throw new Error(data.message || data.error);   // backend ตอบ error กลับมา
+                } else {
+                    throw new Error('เซิร์ฟเวอร์ตอบกลับผิดรูปแบบ');
                 }
             } catch (e) {
                 console.error("Fetch error:", e);
-                toast('โหลดข้อมูลจาก Google Sheets ไม่สำเร็จ: ' + e.message, 'err');
+                const msg = e instanceof SyntaxError ? 'เซิร์ฟเวอร์ตอบกลับผิดรูปแบบ (ตรวจว่า Deploy เวอร์ชันล่าสุดและสิทธิ์เป็น Anyone)' : e.message;
+                setSync('err', msg);
+                toast('โหลดข้อมูลจาก Google Sheets ไม่สำเร็จ: ' + msg, 'err');
             }
             renderDashboard();
         }
@@ -625,10 +652,14 @@
             });
         }
 
-        // ส่งคำขอไป Apps Script พร้อม timeout (ไม่ให้รอเงียบไม่รู้จบ)
-        async function postJson(body, ms = 75000) {
-            const ctl = new AbortController();
-            const timer = setTimeout(() => ctl.abort(), ms);
+        // ---------- Network ----------
+        let AI_TIMEOUT_MS = 75000;      // รอ AI อ่านภาพสูงสุด
+        let SAVE_TIMEOUT_MS = 30000;    // รอบันทึกลงชีตสูงสุด
+
+        // ส่งคำขอไป Apps Script พร้อม timeout และยกเลิกได้
+        async function postJson(body, ms, ctl) {
+            ctl = ctl || new AbortController();
+            const timer = setTimeout(() => { ctl.timedOut = true; ctl.abort(); }, ms);
             try {
                 const res = await fetch(SHEET_API_URL, {
                     method: 'POST',
@@ -636,57 +667,159 @@
                     body: JSON.stringify(body),
                     signal: ctl.signal
                 });
-                return await res.json();
+                const text = await res.text();
+                try { return JSON.parse(text); }
+                catch (e) { throw new Error('เซิร์ฟเวอร์ตอบกลับผิดรูปแบบ (ตรวจว่า Deploy เวอร์ชันล่าสุดและสิทธิ์เป็น Anyone)'); }
             } catch (e) {
-                if (e.name === 'AbortError') throw new Error('เซิร์ฟเวอร์ตอบช้าเกิน ' + Math.round(ms / 1000) + ' วินาที ลองใหม่อีกครั้ง หรือกรอกค่าเอง');
+                if (e.name === 'AbortError') throw new Error(ctl.timedOut ? 'เซิร์ฟเวอร์ตอบช้าเกิน ' + Math.round(ms / 1000) + ' วินาที' : 'ยกเลิกแล้ว');
                 throw e;
             } finally {
                 clearTimeout(timer);
             }
         }
 
-        // ---------- AI Vision ----------
+        // ---------- สถานะการซิงค์ข้อมูลกับชีต (มุมซ้ายบน) ----------
+        function setSync(state, info) {
+            const dots = { loading: 'bg-amber-400 pulse-active', ok: 'bg-emerald-400', err: 'bg-red-500' };
+            $('syncDot').className = 'w-2 h-2 rounded-full ' + dots[state];
+            const icon = $('refreshIcon');
+            if (icon) icon.classList.toggle('fa-spin', state === 'loading');
+            if (state === 'ok') {
+                const d = new Date();
+                const hhmm = String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0');
+                $('syncText').textContent = 'ซิงค์ล่าสุด ' + hhmm + ' · ' + info + ' รายการ';
+            } else if (state === 'err') {
+                $('syncText').textContent = 'เชื่อมต่อชีตไม่ได้ · แตะเพื่อลองใหม่';
+                $('syncChip').title = info || '';
+            } else {
+                $('syncText').textContent = 'กำลังโหลดข้อมูลจากชีต...';
+            }
+        }
+
+        // ---------- AI Vision: สถานะระหว่างรอ ----------
+        let ocrAbort = null, ocrTicker = null, ocrT0 = 0, ocrBusy = false, saving = false, lastSrc = null;
+        const STEP_LABELS = ['เตรียมภาพ', 'ส่งให้ AI อ่านค่า', 'ตรวจทาน'];
+        const FIELD_IDS = ['extractEDel', 'extractPtot', 'extractVavg', 'extractIavg'];
+
+        function renderSteps(active, reviewing) {
+            $('ocrSteps').innerHTML = STEP_LABELS.map((label, i) => {
+                const done = i < active, cur = i === active;
+                const cls = done ? 'bg-emerald-500/15 border-emerald-500/40 text-emerald-300'
+                    : cur ? 'bg-cyan-500/15 border-cyan-500/40 text-cyan-300'
+                    : 'bg-slate-800 border-slate-700 text-slate-500';
+                const icon = done ? 'fa-check' : cur ? (reviewing ? 'fa-eye' : 'fa-circle-notch fa-spin') : 'fa-circle';
+                return `<span class="flex items-center gap-1 px-2 py-0.5 rounded-full border ${cls}"><i class="fa-solid ${icon} text-[9px]"></i>${i + 1}. ${label}</span>`;
+            }).join('<i class="fa-solid fa-chevron-right text-[8px] text-slate-600"></i>');
+        }
+
+        // state: loading | done | error | manual
+        function setOcrState(state, o) {
+            o = o || {};
+            const panel = {
+                loading: 'border-cyan-500/30 bg-cyan-500/5', done: 'border-emerald-500/40 bg-emerald-500/10',
+                error: 'border-red-500/40 bg-red-500/10', manual: 'border-amber-500/40 bg-amber-500/10'
+            };
+            const icon = {
+                loading: 'fa-spinner fa-spin text-cyan-400', done: 'fa-circle-check text-emerald-400',
+                error: 'fa-circle-xmark text-red-400', manual: 'fa-pen text-amber-400'
+            };
+            $('ocrStatus').className = 'rounded-xl border px-3 py-2.5 text-xs ' + panel[state];
+            $('ocrStatusIcon').className = 'fa-solid ' + icon[state];
+            if (o.title !== undefined) $('ocrStatusTitle').textContent = o.title;
+            if (o.hint !== undefined) $('ocrHint').textContent = o.hint;
+            $('ocrTimer').classList.toggle('hidden', state === 'manual');
+            $('ocrSteps').classList.toggle('hidden', state !== 'loading' && state !== 'done');
+            $('ocrBarWrap').classList.toggle('hidden', state !== 'loading');
+            $('ocrStatusActions').classList.toggle('hidden', state === 'done' || state === 'manual');
+            $('btnRetry').classList.toggle('hidden', state !== 'error');
+            $('btnManual').classList.toggle('hidden', state !== 'loading' && state !== 'error');
+            $('btnCancelAi').classList.toggle('hidden', state !== 'loading');
+            const busy = state === 'loading';
+            $('ocrFields').disabled = busy;
+            $('ocrFields').classList.toggle('opacity-50', busy);
+            $('ocrSubmitBtn').disabled = busy;
+        }
+
+        function startOcrTicker() {
+            clearInterval(ocrTicker);
+            ocrT0 = Date.now();
+            const update = () => {
+                const s = Math.floor((Date.now() - ocrT0) / 1000);
+                $('ocrTimer').textContent = s + ' วิ';
+                if (!ocrBusy) return;
+                $('ocrHint').textContent = s < 8 ? 'ปกติใช้เวลา 5–20 วินาที'
+                    : s < 25 ? 'กำลังรอ AI ตอบกลับ ระบบยังทำงานอยู่ ไม่ต้องกดซ้ำ'
+                    : s < 50 ? 'ช้ากว่าปกติ: เซิร์ฟเวอร์ AI อาจมีคนใช้เยอะ ระบบอาจกำลังลองรุ่นสำรองให้อัตโนมัติ'
+                    : 'ใกล้ครบเวลารอแล้ว (สูงสุด ' + Math.round(AI_TIMEOUT_MS / 1000) + ' วินาที) กด "กรอกเอง" เพื่อพิมพ์ค่าจากหน้าจอมิเตอร์ได้เลย';
+            };
+            update();
+            ocrTicker = setInterval(update, 1000);
+        }
+        function stopOcrTicker() { clearInterval(ocrTicker); ocrTicker = null; }
+
         async function processImage(src) {
+            lastSrc = src;
+            if (ocrAbort) ocrAbort.abort();
             const myId = ++ocrRequestId;
+            ocrBusy = true;
             resetOcrForm();
+            $('ocrPreview').src = src;                       // เห็นรูปที่กำลังวิเคราะห์ทันที
+            $('ocrPreview').classList.remove('hidden');
             $('ocrModal').classList.remove('hidden');
-            $('ocrLoading').classList.remove('hidden');
-            $('ocrSubmitBtn').disabled = true;
-            const t0 = Date.now();
-            $('ocrLoadingText').textContent = 'AI กำลังอ่านค่าจากภาพ... 0 วิ';
-            const tick = setInterval(() => { $('ocrLoadingText').textContent = 'AI กำลังอ่านค่าจากภาพ... ' + Math.round((Date.now() - t0) / 1000) + ' วิ'; }, 1000);
+            setOcrState('loading', { title: 'กำลังเตรียมภาพ...' });
+            renderSteps(0);
+            startOcrTicker();
+            const ctl = ocrAbort = new AbortController();
 
             try {
                 const jpeg = await resizeToJpeg(src);
-                $('ocrPreview').src = jpeg;
-                const base64 = jpeg.split(',')[1];
-
-                const out = await postJson({ action: 'ocr', image: base64, mime: 'image/jpeg' });
-                if (myId !== ocrRequestId) return;   // ผู้ใช้ปิด/สแกนใหม่แล้ว
-
+                if (myId !== ocrRequestId) return;
+                renderSteps(1);
+                setOcrState('loading', { title: 'AI กำลังอ่านค่าจากภาพ...' });
+                const out = await postJson({ action: 'ocr', image: jpeg.split(',')[1], mime: 'image/jpeg' }, AI_TIMEOUT_MS, ctl);
+                if (myId !== ocrRequestId) return;           // ผู้ใช้ปิด/สแกนใหม่แล้ว
                 if (!out.ok) throw new Error(out.error || 'AI อ่านค่าไม่สำเร็จ');
-                const d = out.data;
+
+                const d = out.data || {};
                 if (d.edel != null) $('extractEDel').value = d.edel;
                 if (d.ptot != null) $('extractPtot').value = d.ptot;
                 if (d.vavg != null) $('extractVavg').value = d.vavg;
                 if (d.iavg != null) $('extractIavg').value = d.iavg;
+
+                ocrBusy = false; stopOcrTicker();
+                const secs = Math.round((Date.now() - ocrT0) / 1000);
+                $('ocrTimer').textContent = secs + ' วิ';
+                renderSteps(2, true);
+                setOcrState('done', {
+                    title: 'AI อ่านค่าเสร็จแล้ว' + (out.model ? ' · ' + out.model : ''),
+                    hint: 'ตรวจเทียบค่ากับรูปด้านบน แล้วกด "ยืนยัน"'
+                });
                 validateForm(d.note, d.readable === false);
+                const empty = FIELD_IDS.map($).find(el => el.value === '');
+                if (empty) empty.focus();
             } catch (err) {
                 if (myId !== ocrRequestId) return;
                 console.error(err);
-                showWarnings([{ level: 'err', text: 'อ่านค่าอัตโนมัติไม่สำเร็จ: ' + err.message + ' — กรอกค่าด้วยตัวเอง หรือถ่ายภาพใหม่' }]);
-            } finally {
-                clearInterval(tick);
-                if (myId === ocrRequestId) {
-                    $('ocrLoading').classList.add('hidden');
-                    $('ocrSubmitBtn').disabled = false;
-                }
+                ocrBusy = false; stopOcrTicker();
+                $('ocrTimer').textContent = Math.round((Date.now() - ocrT0) / 1000) + ' วิ';
+                setOcrState('error', { title: 'AI อ่านค่าไม่สำเร็จ', hint: err.message + ' — ลองอีกครั้ง หรือกรอกค่าเองจากหน้าจอมิเตอร์' });
             }
         }
 
+        function retryOcr() { if (lastSrc) processImage(lastSrc); }
+
+        function manualEntry() {
+            ocrRequestId++;
+            if (ocrAbort) ocrAbort.abort();
+            ocrBusy = false; stopOcrTicker();
+            setOcrState('manual', { title: 'กรอกค่าเองจากหน้าจอมิเตอร์', hint: 'ดูรูปด้านบนเทียบกับหน้าจอมิเตอร์ แล้วกรอกค่าให้ครบทุกช่อง' });
+            $('extractEDel').focus();
+        }
+
         function resetOcrForm() {
-            ['extractEDel', 'extractPtot', 'extractVavg', 'extractIavg'].forEach(id => { $(id).value = ''; $(id).classList.remove('field-warn', 'field-err'); });
+            FIELD_IDS.forEach(id => { $(id).value = ''; $(id).classList.remove('field-warn', 'field-err'); });
             $('ocrWarnings').innerHTML = '';
+            $('ocrPreview').classList.add('hidden');
             $('ocrPreview').removeAttribute('src');
         }
 
@@ -719,7 +852,10 @@
             }
             if (!isNaN(edel) && meterLogs.length) {
                 const last = meterLogs[meterLogs.length - 1].eDel;
-                if (edel < last) {
+                if (edel === last) {
+                    f.edel.classList.add('field-warn');
+                    warns.push({ level: 'warn', text: `E Del เท่ากับค่าครั้งก่อน (${formatNum(last, 2)} MWh) — อาจเป็นรูปเดิมหรือบันทึกซ้ำ` });
+                } else if (edel < last) {
                     f.edel.classList.add('field-warn');
                     warns.push({ level: 'warn', text: `E Del ต่ำกว่าค่าครั้งก่อน (${formatNum(last, 2)} MWh) — อาจอ่านผิด หรือมิเตอร์ถูกรีเซ็ต` });
                 } else if (!isNaN(ptot)) {
@@ -743,12 +879,16 @@
         }
 
         function closeOcrModal() {
-            ocrRequestId++;   // ยกเลิกผลที่ยังค้างอยู่
+            if (saving) return;                 // กำลังบันทึกอยู่ ไม่ให้ปิดกลางคัน
+            ocrRequestId++;                     // ยกเลิกผลที่ยังค้างอยู่
+            if (ocrAbort) ocrAbort.abort();
+            ocrBusy = false; stopOcrTicker();
             $('ocrModal').classList.add('hidden');
         }
 
         async function saveExtractedData(e) {
             e.preventDefault();
+            if (saving || ocrBusy) return;
             const payload = {
                 action: 'save',
                 edel: parseFloat($('extractEDel').value),
@@ -759,21 +899,35 @@
             };
             if (![payload.edel, payload.ptot, payload.vavg, payload.iavg].every(isFinite)) {
                 toast('กรุณากรอกค่าให้ครบทุกช่อง', 'err');
+                validateForm();
                 return;
             }
-            const btn = $('ocrSubmitBtn');
-            btn.disabled = true;
+
+            saving = true;
+            const btn = $('ocrSubmitBtn'), label = btn.innerHTML, t0 = Date.now();
+            btn.disabled = true; $('ocrFields').disabled = true; $('ocrCancelBtn').disabled = true;
+            const paint = () => { btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin mr-1"></i> กำลังบันทึกลงชีต... ' + Math.round((Date.now() - t0) / 1000) + ' วิ'; };
+            paint();
+            const tick = setInterval(paint, 500);
             try {
-                const out = await postJson(payload);
+                const out = await postJson(payload, SAVE_TIMEOUT_MS);
                 if (!out.ok) throw new Error(out.error || 'บันทึกไม่สำเร็จ');
-                toast('บันทึกลง Google Sheets เรียบร้อย');
+                saving = false;
+                toast('บันทึกลง Google Sheets เรียบร้อย' + (out.row ? ' (แถว ' + out.row + ')' : ''));
                 closeOcrModal();
                 fetchSheetData();
             } catch (err) {
                 console.error(err);
+                const timedOut = /ช้าเกิน/.test(err.message);
+                showWarnings([{ level: 'err', text: 'บันทึกไม่สำเร็จ: ' + err.message + (timedOut
+                    ? ' — อาจบันทึกไปแล้ว โปรดตรวจในชีตก่อนกดซ้ำ เพื่อกันข้อมูลซ้ำ'
+                    : ' — ข้อมูลที่กรอกยังอยู่ กดยืนยันอีกครั้งได้') }]);
                 toast('ส่งข้อมูลไม่สำเร็จ: ' + err.message, 'err');
             } finally {
-                btn.disabled = false;
+                clearInterval(tick);
+                saving = false;
+                btn.innerHTML = label;
+                btn.disabled = false; $('ocrFields').disabled = false; $('ocrCancelBtn').disabled = false;
             }
         }
 
