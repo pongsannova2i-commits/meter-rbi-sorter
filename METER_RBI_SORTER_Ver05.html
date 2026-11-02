@@ -2,7 +2,7 @@
 <html lang="th" class="dark">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>Schneider PM2200 Smart OCR & Electricity Analytics</title>
     <meta name="theme-color" content="#0f172a">
     <meta name="apple-mobile-web-app-capable" content="yes">
@@ -14,8 +14,7 @@
             theme: {
                 extend: {
                     colors: {
-                        schneider: { 50: '#e6f4ea', 100: '#ceebd5', 500: '#34a853', 600: '#009639', 700: '#007a2f', 900: '#003d18' },
-                        darkbg: '#0f172a', cardbg: '#1e293b'
+                        schneider: { 50: '#e6f4ea', 100: '#ceebd5', 500: '#34a853', 600: '#009639', 700: '#007a2f', 900: '#003d18' }
                     },
                     fontFamily: { sans: ['Kanit', 'Inter', 'sans-serif'] }
                 }
@@ -25,63 +24,72 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link href="https://fonts.googleapis.com/css2?family=Kanit:wght@300;400;500;600;700&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
     <style>
-        body { font-family: 'Kanit', 'Inter', sans-serif; -webkit-tap-highlight-color: transparent; user-select: none; }
+        body { font-family: 'Kanit', 'Inter', sans-serif; -webkit-tap-highlight-color: transparent; }
+        input, textarea { user-select: text; -webkit-user-select: text; }
         .glass-card { background: rgba(30, 41, 59, 0.75); backdrop-filter: blur(16px); border: 1px solid rgba(255, 255, 255, 0.08); }
-        .light .glass-card { background: rgba(255, 255, 255, 0.9); border: 1px solid rgba(0, 0, 0, 0.08); }
         .pb-safe { padding-bottom: env(safe-area-inset-bottom, 1rem); }
-        .pt-safe { padding-top: env(safe-area-inset-top, 1rem); }
-        @keyframes scan-line { 0% { top: 0%; opacity: 0.8; } 50% { opacity: 1; } 100% { top: 95%; opacity: 0.8; } }
+        .pt-safe { padding-top: env(safe-area-inset-top, 0.75rem); }
+        @keyframes scan-line { 0% { top: 0%; opacity: 0.8; } 100% { top: 95%; opacity: 0.8; } }
         .scan-animation { animation: scan-line 2s infinite ease-in-out alternate; }
-        @keyframes pulse-ring { 0% { transform: scale(0.95); opacity: 0.8; } 50% { transform: scale(1.05); opacity: 1; } 100% { transform: scale(0.95); opacity: 0.8; } }
+        @keyframes pulse-ring { 0%,100% { transform: scale(0.95); opacity: 0.8; } 50% { transform: scale(1.05); opacity: 1; } }
         .pulse-active { animation: pulse-ring 2s infinite ease-in-out; }
+        .field-warn { border-color: #f59e0b !important; }
+        .field-err { border-color: #ef4444 !important; }
+
+        /* ---- Light theme ---- */
+        .light body, body.light-body { background: #f1f5f9; color: #0f172a; }
+        .light .glass-card { background: rgba(255, 255, 255, 0.92); border: 1px solid rgba(0, 0, 0, 0.08); }
+        .light .text-slate-100, .light .text-slate-200 { color: #0f172a; }
+        .light .text-slate-300 { color: #334155; }
+        .light .text-slate-400 { color: #64748b; }
+        .light .bg-slate-900, .light .bg-slate-900\/90 { background: #e2e8f0; }
+        .light .bg-slate-800 { background: #e2e8f0; }
+        .light .bg-slate-950 { background: #ffffff; }
+        .light .border-slate-800, .light .border-slate-700 { border-color: #cbd5e1; }
+        .light thead { background: #e2e8f0 !important; }
     </style>
 </head>
 <body class="bg-slate-950 text-slate-100 min-h-screen pb-24 md:pb-8 transition-colors duration-300">
 
-    <!-- Top App Navigation Header -->
+    <!-- Header -->
     <header class="sticky top-0 z-40 glass-card border-b border-slate-800 px-4 py-3 flex items-center justify-between pt-safe">
         <div class="flex items-center space-x-3">
             <div class="p-2 bg-schneider-600 rounded-xl shadow-lg shadow-schneider-600/30 text-white">
                 <i class="fa-solid fa-bolt-lightning text-lg"></i>
             </div>
             <div>
-                <h1 class="font-bold text-base md:text-lg bg-gradient-to-r from-schneider-500 via-emerald-400 to-teal-300 bg-clip-text text-transparent">
-                    Schneider PM2200
-                </h1>
+                <h1 class="font-bold text-base md:text-lg bg-gradient-to-r from-schneider-500 via-emerald-400 to-teal-300 bg-clip-text text-transparent">Schneider PM2200</h1>
                 <p class="text-[11px] text-slate-400 flex items-center gap-1">
                     <span class="w-2 h-2 rounded-full bg-emerald-400 pulse-active"></span>
-                    Smart OCR & Google Sheets Live
+                    AI Vision & Google Sheets Live
                 </p>
             </div>
         </div>
-
         <div class="flex items-center space-x-2">
             <div class="flex items-center bg-slate-900/90 border border-slate-700 rounded-xl px-2.5 py-1 text-xs">
                 <span class="text-slate-400 mr-1.5 font-medium">฿/หน่วย:</span>
-                <input type="number" id="globalUnitPrice" value="6.00" step="0.1" min="0" 
+                <input type="number" id="globalUnitPrice" value="6.00" step="0.1" min="0"
                     class="w-12 bg-slate-800 text-schneider-500 font-bold rounded text-center focus:outline-none"
                     onchange="renderDashboard()">
             </div>
-            <button onclick="toggleTheme()" class="p-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl border border-slate-700 transition">
+            <button onclick="toggleTheme()" aria-label="สลับธีม" class="p-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl border border-slate-700 transition">
                 <i id="themeIcon" class="fa-solid fa-moon text-sm"></i>
             </button>
         </div>
     </header>
 
-    <!-- Main Container -->
     <main class="max-w-5xl mx-auto px-4 py-4 space-y-5">
 
-        <!-- Quick AI Camera Banner Action -->
+        <!-- Scan banner -->
         <section class="relative overflow-hidden rounded-2xl bg-gradient-to-r from-schneider-900 via-slate-900 to-slate-950 p-5 border border-schneider-600/40 shadow-xl shadow-schneider-600/10">
             <div class="relative z-10 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
                 <div>
                     <span class="inline-block px-2.5 py-0.5 rounded-full bg-schneider-600/20 text-schneider-500 border border-schneider-600/30 text-[11px] font-semibold mb-1">
-                        <i class="fa-solid fa-wand-magic-sparkles mr-1"></i> AI Smart Extraction
+                        <i class="fa-solid fa-wand-magic-sparkles mr-1"></i> AI Vision Extraction
                     </span>
                     <h2 class="text-lg font-bold text-slate-100">สแกนหน้าจอมิเตอร์ไฟฟ้า</h2>
-                    <p class="text-xs text-slate-400 max-w-sm">ถ่ายรูปหรือเลือกภาพถ่ายจอมิเตอร์เพื่อส่งข้อมูลเข้า Google Sheets อัตโนมัติทันที</p>
+                    <p class="text-xs text-slate-400 max-w-sm">ถ่ายรูปหรือเลือกภาพจอมิเตอร์ ให้ AI อ่านค่า แล้วตรวจทานก่อนส่งเข้า Google Sheets</p>
                 </div>
                 <div class="flex items-center gap-2.5 w-full sm:w-auto">
                     <button onclick="openCameraModal()" class="flex-1 sm:flex-initial px-4 py-2.5 bg-schneider-600 hover:bg-schneider-500 active:scale-95 text-white font-bold rounded-xl text-xs shadow-lg shadow-schneider-600/30 transition flex items-center justify-center gap-2">
@@ -95,18 +103,18 @@
             </div>
         </section>
 
-        <!-- Executive Summary Mobile Grid -->
+        <!-- Summary cards -->
         <section class="grid grid-cols-2 lg:grid-cols-4 gap-3">
-            <div class="glass-card p-4 rounded-2xl relative overflow-hidden">
+            <div class="glass-card p-4 rounded-2xl">
                 <p class="text-[11px] font-semibold uppercase tracking-wider text-slate-400">เลขมิเตอร์ล่าสุด</p>
                 <div class="flex items-baseline space-x-1 mt-1">
-                    <span id="cardLatestEDel" class="text-2xl font-extrabold text-schneider-500">0.00</span>
+                    <span id="cardLatestEDel" class="text-2xl font-extrabold text-schneider-500">-</span>
                     <span class="text-xs font-medium text-slate-400">MWh</span>
                 </div>
                 <p id="cardLatestDate" class="text-[10px] text-slate-400 mt-1 truncate">-</p>
             </div>
 
-            <div class="glass-card p-4 rounded-2xl relative overflow-hidden">
+            <div class="glass-card p-4 rounded-2xl">
                 <p class="text-[11px] font-semibold uppercase tracking-wider text-slate-400">หน่วยไฟฟ้ารวมช่วงนี้</p>
                 <div class="flex items-baseline space-x-1 mt-1">
                     <span id="cardTotalUnits" class="text-2xl font-extrabold text-cyan-400">0</span>
@@ -115,26 +123,26 @@
                 <p class="text-[10px] text-slate-400 mt-1">คิดเป็น: <span id="cardTotalCost" class="text-emerald-400 font-bold">0</span> ฿</p>
             </div>
 
-            <div class="glass-card p-4 rounded-2xl relative overflow-hidden">
+            <div class="glass-card p-4 rounded-2xl">
                 <p class="text-[11px] font-semibold uppercase tracking-wider text-slate-400">อัตราโหลดเฉลี่ย</p>
                 <div class="flex items-center justify-between mt-1">
-                    <span class="text-xs text-amber-400 font-bold"><i class="fa-solid fa-sun"></i> 30.0 <span class="text-[9px] text-slate-400">u/h</span></span>
-                    <span class="text-xs text-indigo-400 font-bold"><i class="fa-solid fa-moon"></i> 18.1 <span class="text-[9px] text-slate-400">u/h</span></span>
+                    <span class="text-xs text-amber-400 font-bold"><i class="fa-solid fa-sun"></i> <span id="cardDayRate">-</span> <span class="text-[9px] text-slate-400">u/h</span></span>
+                    <span class="text-xs text-indigo-400 font-bold"><i class="fa-solid fa-moon"></i> <span id="cardNightRate">-</span> <span class="text-[9px] text-slate-400">u/h</span></span>
                 </div>
-                <p class="text-[10px] text-amber-300 mt-1">กลางวันใช้ไฟสูงกว่า +65.7%</p>
+                <p id="cardRateNote" class="text-[10px] text-amber-300 mt-1">ยังไม่มีข้อมูลพอ</p>
             </div>
 
-            <div class="glass-card p-4 rounded-2xl relative overflow-hidden">
+            <div class="glass-card p-4 rounded-2xl">
                 <p class="text-[11px] font-semibold uppercase tracking-wider text-slate-400">ประมาณการค่าไฟ/เดือน</p>
                 <div class="flex items-baseline space-x-1 mt-1">
-                    <span id="cardMonthlyCostEst" class="text-2xl font-extrabold text-indigo-400">0</span>
+                    <span id="cardMonthlyCostEst" class="text-2xl font-extrabold text-indigo-400">-</span>
                     <span class="text-xs font-medium text-slate-400">บาท</span>
                 </div>
-                <p class="text-[10px] text-slate-400 mt-1">เฉลี่ย <span id="cardDailyUnitsEst" class="text-slate-200 font-bold">0</span> หน่วย/วัน</p>
+                <p class="text-[10px] text-slate-400 mt-1">เฉลี่ย <span id="cardDailyUnitsEst" class="text-slate-200 font-bold">-</span> หน่วย/วัน</p>
             </div>
         </section>
 
-        <!-- Navigation Tabs for Mobile View -->
+        <!-- Tabs -->
         <div id="tabNav" class="flex bg-slate-900 p-1 rounded-2xl border border-slate-800 text-xs font-medium">
             <button onclick="switchTab('analytics')" id="tabAnalyticsBtn" class="flex-1 py-2 rounded-xl text-center font-bold bg-schneider-600 text-white shadow transition">
                 <i class="fa-solid fa-chart-line mr-1"></i> กราฟ & วิเคราะห์
@@ -147,7 +155,7 @@
             </button>
         </div>
 
-        <!-- TAB CONTENT 1: ANALYTICS & CHARTS -->
+        <!-- Tab 1 -->
         <div id="tabAnalytics" class="space-y-5">
             <div class="glass-card p-4 rounded-2xl">
                 <div class="flex items-center justify-between mb-3">
@@ -156,9 +164,7 @@
                     </h3>
                     <span class="text-[10px] text-slate-400 bg-slate-900 px-2 py-0.5 rounded-md border border-slate-800">Google Sheets Live</span>
                 </div>
-                <div class="relative w-full h-64">
-                    <canvas id="cumulativeChart"></canvas>
-                </div>
+                <div class="relative w-full h-64"><canvas id="cumulativeChart"></canvas></div>
             </div>
 
             <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -166,23 +172,18 @@
                     <h3 class="text-xs font-bold text-slate-200 mb-2 flex items-center gap-1.5">
                         <i class="fa-solid fa-clock text-amber-400"></i> โหลดเฉลี่ย กลางวัน vs กลางคืน
                     </h3>
-                    <div class="relative w-full h-48 flex items-center justify-center">
-                        <canvas id="dayNightChart"></canvas>
-                    </div>
+                    <div class="relative w-full h-48 flex items-center justify-center"><canvas id="dayNightChart"></canvas></div>
                 </div>
-
                 <div class="glass-card p-4 rounded-2xl">
                     <h3 class="text-xs font-bold text-slate-200 mb-2 flex items-center gap-1.5">
                         <i class="fa-solid fa-chart-column text-cyan-400"></i> ปริมาณไฟที่ใช้แต่ละรอบ (kWh)
                     </h3>
-                    <div class="relative w-full h-48">
-                        <canvas id="periodConsumptionChart"></canvas>
-                    </div>
+                    <div class="relative w-full h-48"><canvas id="periodConsumptionChart"></canvas></div>
                 </div>
             </div>
         </div>
 
-        <!-- TAB CONTENT 2: HISTORY LOG TABLE -->
+        <!-- Tab 2 -->
         <div id="tabHistory" class="hidden space-y-4">
             <div class="glass-card rounded-2xl overflow-hidden">
                 <div class="p-4 border-b border-slate-800 flex items-center justify-between">
@@ -194,7 +195,6 @@
                         <i class="fa-solid fa-rotate"></i> โหลดข้อมูลล่าสุด
                     </button>
                 </div>
-
                 <div class="overflow-x-auto">
                     <table class="w-full text-left text-xs">
                         <thead class="bg-slate-900/90 text-slate-400 text-[10px] uppercase border-b border-slate-800">
@@ -213,98 +213,104 @@
             </div>
         </div>
 
-        <!-- TAB CONTENT 3: 24HR SIMULATOR & CALCULATOR -->
+        <!-- Tab 3 -->
         <div id="tabSimulator" class="hidden space-y-4">
             <div class="glass-card p-5 rounded-2xl space-y-4">
                 <h3 class="text-sm font-bold text-slate-100 flex items-center gap-2">
                     <i class="fa-solid fa-sliders text-cyan-400"></i> จำลองและประเมินค่าไฟ 24 ชั่วโมง
                 </h3>
-                
+                <p id="simRateNote" class="text-[11px] text-slate-400"></p>
                 <div class="space-y-4">
                     <div>
                         <div class="flex justify-between text-xs mb-1">
-                            <span class="text-slate-300 font-medium"><i class="fa-solid fa-sun text-amber-400"></i> ชั่วโมงใช้งานกลางวัน (30.0 หน่วย/ชม.)</span>
+                            <span class="text-slate-300 font-medium"><i class="fa-solid fa-sun text-amber-400"></i> ชั่วโมงใช้งานกลางวัน (<span id="simDayRate">-</span> หน่วย/ชม.)</span>
                             <span id="simDayVal" class="text-amber-400 font-bold">10 ชม.</span>
                         </div>
-                        <input type="range" id="simDay" min="0" max="24" value="10" 
-                            class="w-full h-2 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-amber-400"
-                            oninput="run24hSimulator()">
+                        <input type="range" id="simDay" min="0" max="24" value="10" class="w-full h-2 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-amber-400" oninput="run24hSimulator()">
                     </div>
-
                     <div>
                         <div class="flex justify-between text-xs mb-1">
-                            <span class="text-slate-300 font-medium"><i class="fa-solid fa-moon text-indigo-400"></i> ชั่วโมงใช้งานกลางคืน (18.1 หน่วย/ชม.)</span>
+                            <span class="text-slate-300 font-medium"><i class="fa-solid fa-moon text-indigo-400"></i> ชั่วโมงใช้งานกลางคืน (<span id="simNightRate">-</span> หน่วย/ชม.)</span>
                             <span id="simNightVal" class="text-indigo-400 font-bold">14 ชม.</span>
                         </div>
-                        <input type="range" id="simNight" min="0" max="24" value="14" 
-                            class="w-full h-2 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-indigo-400"
-                            oninput="run24hSimulator()">
+                        <input type="range" id="simNight" min="0" max="24" value="14" class="w-full h-2 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-indigo-400" oninput="run24hSimulator()">
                     </div>
                 </div>
-
                 <div class="bg-slate-900/90 p-4 rounded-xl border border-slate-800 space-y-2 mt-2">
                     <div class="flex justify-between text-xs">
-                        <span class="text-slate-400">รวมหน่วยไฟคาดการณ์ (24 ชม.):</span>
-                        <span id="simTotalUnits" class="font-bold text-slate-100 text-sm">553.4 kWh</span>
+                        <span class="text-slate-400">รวมหน่วยไฟคาดการณ์:</span>
+                        <span id="simTotalUnits" class="font-bold text-slate-100 text-sm">-</span>
                     </div>
                     <div class="flex justify-between text-xs">
-                        <span class="text-slate-400">รวมค่าไฟฟ้าคาดการณ์ (24 ชม.):</span>
-                        <span id="simTotalCost" class="font-extrabold text-schneider-500 text-base">3,320.40 บาท</span>
+                        <span class="text-slate-400">รวมค่าไฟฟ้าคาดการณ์:</span>
+                        <span id="simTotalCost" class="font-extrabold text-schneider-500 text-base">-</span>
                     </div>
                 </div>
             </div>
         </div>
-
     </main>
 
-    <!-- CAMERA LIVE CAPTURE MODAL -->
+    <!-- Camera modal -->
     <div id="cameraModal" class="fixed inset-0 z-50 bg-slate-950/95 backdrop-blur-md hidden flex flex-col justify-between p-4">
         <div class="flex justify-between items-center text-slate-300 pt-safe">
             <span class="text-xs font-semibold flex items-center gap-1.5 text-schneider-500">
-                <i class="fa-solid fa-expand"></i> วางจอมิเตอร์ในกรอบ
+                <i class="fa-solid fa-expand"></i> วางจอมิเตอร์ให้เต็มกรอบ หลีกเลี่ยงแสงสะท้อน
             </span>
-            <button onclick="closeCameraModal()" class="p-2 bg-slate-800 rounded-full text-slate-400 hover:text-white">
+            <button onclick="closeCameraModal()" aria-label="ปิด" class="p-2 bg-slate-800 rounded-full text-slate-400 hover:text-white">
                 <i class="fa-solid fa-xmark text-lg"></i>
             </button>
         </div>
         <div class="relative w-full max-w-sm mx-auto aspect-square rounded-3xl overflow-hidden border-2 border-schneider-500/80 shadow-2xl bg-black flex items-center justify-center my-auto">
-            <video id="webcamVideo" autoplay playsinline class="w-full h-full object-cover"></video>
+            <video id="webcamVideo" autoplay playsinline muted class="w-full h-full object-cover"></video>
             <div class="absolute left-0 right-0 h-0.5 bg-emerald-400 scan-animation"></div>
         </div>
         <div class="flex items-center justify-center gap-6 pb-safe">
-            <button onclick="captureCameraPhoto()" class="w-16 h-16 rounded-full bg-schneider-600 border-4 border-slate-900 shadow-xl active:scale-90 transition flex items-center justify-center text-white text-2xl">
+            <button onclick="captureCameraPhoto()" aria-label="ถ่ายภาพ" class="w-16 h-16 rounded-full bg-schneider-600 border-4 border-slate-900 shadow-xl active:scale-90 transition flex items-center justify-center text-white text-2xl">
                 <i class="fa-solid fa-camera"></i>
             </button>
         </div>
     </div>
 
-    <!-- AI OCR PROCESSING & CONFIRMATION MODAL -->
-    <div id="ocrModal" class="fixed inset-0 z-50 bg-slate-950/90 backdrop-blur-md hidden flex items-center justify-center p-4">
-        <div class="glass-card bg-slate-900 border border-slate-700 rounded-3xl max-w-md w-full p-5 space-y-4">
+    <!-- OCR modal -->
+    <div id="ocrModal" class="fixed inset-0 z-50 bg-slate-950/90 backdrop-blur-md hidden flex items-center justify-center p-4 overflow-y-auto">
+        <div class="glass-card bg-slate-900 border border-slate-700 rounded-3xl max-w-md w-full p-5 space-y-3 my-auto">
             <div class="flex justify-between items-center border-b border-slate-800 pb-3">
                 <h3 class="text-sm font-bold text-slate-100 flex items-center gap-2">
-                    <i class="fa-solid fa-robot text-schneider-500"></i> ผลการสแกน AI OCR & ส่งข้อมูล
+                    <i class="fa-solid fa-robot text-schneider-500"></i> ผลอ่านค่าโดย AI Vision
                 </h3>
-                <button onclick="closeOcrModal()" class="text-slate-400 hover:text-white"><i class="fa-solid fa-xmark"></i></button>
+                <button onclick="closeOcrModal()" aria-label="ปิด" class="text-slate-400 hover:text-white"><i class="fa-solid fa-xmark"></i></button>
             </div>
+
+            <img id="ocrPreview" alt="รูปที่สแกน" class="w-full max-h-48 object-contain rounded-xl bg-black border border-slate-700">
+
+            <div id="ocrLoading" class="flex items-center justify-center gap-2 text-xs text-cyan-400 py-1">
+                <i class="fa-solid fa-spinner fa-spin"></i> AI กำลังอ่านค่าจากภาพ...
+            </div>
+            <div id="ocrWarnings" class="space-y-1 text-[11px]"></div>
+
             <form onsubmit="saveExtractedData(event)" class="space-y-3">
                 <div>
                     <label class="block text-[11px] font-medium text-slate-400 mb-1">E Del (MWh)</label>
-                    <input type="number" step="0.001" id="extractEDel" required class="w-full bg-slate-950 border border-schneider-500/50 rounded-xl px-3 py-1.5 text-schneider-500 font-extrabold text-sm focus:outline-none">
+                    <input type="number" step="0.001" id="extractEDel" required oninput="validateForm()" class="w-full bg-slate-950 border border-schneider-500/50 rounded-xl px-3 py-1.5 text-schneider-500 font-extrabold text-sm focus:outline-none">
                 </div>
-                <div class="grid grid-cols-2 gap-2">
+                <div class="grid grid-cols-3 gap-2">
                     <div>
                         <label class="block text-[11px] font-medium text-slate-400 mb-1">Ptot (kW)</label>
-                        <input type="number" step="0.0001" id="extractPtot" required class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-1.5 text-slate-200 text-xs focus:outline-none">
+                        <input type="number" step="0.0001" id="extractPtot" required oninput="validateForm()" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-1.5 text-slate-200 text-xs focus:outline-none">
                     </div>
                     <div>
                         <label class="block text-[11px] font-medium text-slate-400 mb-1">Vavg (V)</label>
-                        <input type="number" step="0.01" id="extractVavg" required class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-1.5 text-slate-200 text-xs focus:outline-none">
+                        <input type="number" step="0.01" id="extractVavg" required oninput="validateForm()" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-1.5 text-slate-200 text-xs focus:outline-none">
+                    </div>
+                    <div>
+                        <label class="block text-[11px] font-medium text-slate-400 mb-1">Iavg (A)</label>
+                        <input type="number" step="0.01" id="extractIavg" required oninput="validateForm()" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-1.5 text-slate-200 text-xs focus:outline-none">
                     </div>
                 </div>
-                <div class="flex justify-end gap-2 pt-2">
+                <p class="text-[10px] text-slate-500">ตรวจเทียบค่ากับรูปด้านบนก่อนกดยืนยันทุกครั้ง</p>
+                <div class="flex justify-end gap-2 pt-1">
                     <button type="button" onclick="closeOcrModal()" class="px-4 py-2 bg-slate-800 text-slate-300 rounded-xl text-xs">ยกเลิก</button>
-                    <button type="submit" class="px-4 py-2 bg-schneider-600 hover:bg-schneider-500 text-white font-bold rounded-xl text-xs transition">
+                    <button type="submit" id="ocrSubmitBtn" class="px-4 py-2 bg-schneider-600 hover:bg-schneider-500 text-white font-bold rounded-xl text-xs transition disabled:opacity-50">
                         ยืนยัน & ส่งเข้า Google Sheets
                     </button>
                 </div>
@@ -312,283 +318,452 @@
         </div>
     </div>
 
+    <div id="toast" class="fixed left-1/2 -translate-x-1/2 bottom-6 z-[60] hidden px-4 py-2 rounded-xl text-xs font-semibold shadow-xl"></div>
     <canvas id="hiddenCanvas" class="hidden"></canvas>
 
-    <!-- JavaScript Application Core -->
     <script>
-        const SHEET_API_URL = "https://script.google.com/macros/s/AKfycbwmLaAdWBkVEy9LH2fw7P5ZbBXCyK1ex18KMpVowLQy2lhXV5_y1t-jK8rdmiYPdBZJ/exec";
+        const SHEET_API_URL = "https://script.google.com/macros/s/AKfycbxAdfVBubmKyVrgKdJMU7MBsjPeJKRPudWD5oyF3cgb_0eVzarYxFIeh64_T2j7cySm/exec";
+        const DEFAULT_DAY_RATE = 30.0, DEFAULT_NIGHT_RATE = 18.1;   // ใช้เมื่อข้อมูลยังไม่พอคำนวณ
+        const DAY_START = 6, DAY_END = 18;                          // กลางวัน 06:00-18:00
+        const MAX_IMG_WIDTH = 1280;
 
-        // ล้างข้อมูลจำลองออก เพื่อดึงข้อมูลจริงจาก Google Sheets ทั้งหมด
         let meterLogs = [];
-
-        let cumulativeChartInstance = null;
-        let dayNightChartInstance = null;
-        let periodConsumptionChartInstance = null;
+        let rates = { day: null, night: null, days: null };
+        let charts = { cum: null, dn: null, per: null };
         let mediaStream = null;
+        let ocrRequestId = 0;
 
-        window.onload = function() {
-            fetchSheetData();
-        };
-
-        async function fetchSheetData() {
-            if (!SHEET_API_URL) { renderDashboard(); return; }
-            try {
-                const res = await fetch(SHEET_API_URL);
-                const data = await res.json();
-                if (data && data.length > 0) {
-                    meterLogs = data.map(item => ({
-                        datetime: item.datetime ? item.datetime.replace('T', ' ').substring(0, 16) : '-',
-                        eDel: parseFloat(item.edel) || 0,
-                        vavg: parseFloat(item.vavg) || 0,
-                        iavg: parseFloat(item.iavg) || 0,
-                        ptot: parseFloat(item.ptot) || 0
-                    })).filter(item => !isNaN(item.eDel) && item.eDel > 0);
-                }
-            } catch(e) { console.error("Fetch error:", e); }
-            renderDashboard();
-        }
-
-        function toggleTheme() {
-            const html = document.documentElement;
-            const icon = document.getElementById('themeIcon');
-            if (html.classList.contains('dark')) {
-                html.classList.remove('dark');
-                html.classList.add('light');
-                icon.className = 'fa-solid fa-sun text-amber-400';
-            } else {
-                html.classList.remove('light');
-                html.classList.add('dark');
-                icon.className = 'fa-solid fa-moon text-slate-300';
-            }
-        }
-
-        function getUnitPrice() {
-            const v = parseFloat(document.getElementById('globalUnitPrice').value);
-            return isNaN(v) ? 6.00 : v;
-        }
-
-        function switchTab(tab) {
-            document.getElementById('tabAnalytics').classList.add('hidden');
-            document.getElementById('tabHistory').classList.add('hidden');
-            document.getElementById('tabSimulator').classList.add('hidden');
-
-            document.getElementById('tabAnalyticsBtn').className = "flex-1 py-2 rounded-xl text-center text-slate-400 transition";
-            document.getElementById('tabHistoryBtn').className = "flex-1 py-2 rounded-xl text-center text-slate-400 transition";
-            document.getElementById('tabSimBtn').className = "flex-1 py-2 rounded-xl text-center text-slate-400 transition";
-
-            if (tab === 'analytics') {
-                document.getElementById('tabAnalytics').classList.remove('hidden');
-                document.getElementById('tabAnalyticsBtn').className = "flex-1 py-2 rounded-xl text-center font-bold bg-schneider-600 text-white shadow transition";
-            } else if (tab === 'history') {
-                document.getElementById('tabHistory').classList.remove('hidden');
-                document.getElementById('tabHistoryBtn').className = "flex-1 py-2 rounded-xl text-center font-bold bg-schneider-600 text-white shadow transition";
-            } else if (tab === 'simulator') {
-                document.getElementById('tabSimulator').classList.remove('hidden');
-                document.getElementById('tabSimBtn').className = "flex-1 py-2 rounded-xl text-center font-bold bg-schneider-600 text-white shadow transition";
-            }
-        }
+        // ---------- Utilities ----------
+        const esc = s => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+        const $ = id => document.getElementById(id);
 
         function formatNum(n, d = 2) {
             return new Intl.NumberFormat('th-TH', { minimumFractionDigits: d, maximumFractionDigits: d }).format(n);
         }
+        function getUnitPrice() {
+            const v = parseFloat($('globalUnitPrice').value);
+            return isNaN(v) ? 6.00 : v;
+        }
+        function toast(msg, type = 'ok') {
+            const t = $('toast');
+            t.textContent = msg;
+            t.className = 'fixed left-1/2 -translate-x-1/2 bottom-6 z-[60] px-4 py-2 rounded-xl text-xs font-semibold shadow-xl ' +
+                (type === 'ok' ? 'bg-emerald-600 text-white' : 'bg-red-600 text-white');
+            clearTimeout(toast._t);
+            toast._t = setTimeout(() => t.classList.add('hidden'), type === 'ok' ? 3500 : 9000);
+        }
 
+        // รองรับ dd/MM/yyyy HH:mm (ทั้ง ค.ศ. และ พ.ศ.) และรูปแบบ ISO
+        function parseDT(s) {
+            if (!s || s === '-') return null;
+            const m = String(s).match(/(\d{1,2})\/(\d{1,2})\/(\d{4})[ ,T]+(\d{1,2}):(\d{2})/);
+            if (m) {
+                let y = +m[3]; if (y > 2400) y -= 543;
+                return new Date(y, +m[2] - 1, +m[1], +m[4], +m[5]);
+            }
+            const iso = String(s).match(/(\d{4})-(\d{2})-(\d{2})[ T](\d{1,2}):(\d{2})/);
+            if (iso) {
+                let y = +iso[1]; if (y > 2400) y -= 543;
+                return new Date(y, +iso[2] - 1, +iso[3], +iso[4], +iso[5]);
+            }
+            const d = new Date(s);
+            return isNaN(d) ? null : d;
+        }
+
+        // ---------- Data ----------
+        async function fetchSheetData() {
+            try {
+                const res = await fetch(SHEET_API_URL);
+                const data = await res.json();
+                if (Array.isArray(data)) {
+                    meterLogs = data.map(item => ({
+                        datetime: item.datetime ? String(item.datetime).trim() : '-',
+                        eDel: parseFloat(item.edel) || 0,
+                        vavg: parseFloat(item.vavg) || 0,
+                        iavg: parseFloat(item.iavg) || 0,
+                        ptot: parseFloat(item.ptot) || 0
+                    })).filter(item => item.eDel > 0);
+
+                    // เรียงตามเวลา (ถ้าอ่านเวลาได้ครบทุกแถว) ไม่เช่นนั้นคงลำดับเดิมจากชีต
+                    const times = meterLogs.map(l => parseDT(l.datetime));
+                    if (times.length && times.every(Boolean)) {
+                        meterLogs.forEach((l, i) => l._t = times[i]);
+                        meterLogs.sort((a, b) => a._t - b._t);
+                    } else {
+                        meterLogs.forEach((l, i) => l._t = times[i]);
+                    }
+                } else if (data && (data.message || data.error)) {
+                    throw new Error(data.message || data.error);   // backend ตอบ error กลับมา
+                }
+            } catch (e) {
+                console.error("Fetch error:", e);
+                toast('โหลดข้อมูลจาก Google Sheets ไม่สำเร็จ: ' + e.message, 'err');
+            }
+            renderDashboard();
+        }
+
+        // คำนวณอัตราโหลดกลางวัน/กลางคืน และจำนวนวันจากข้อมูลจริง
+        function computeRates() {
+            let dayU = 0, dayH = 0, nightU = 0, nightH = 0;
+            for (let i = 1; i < meterLogs.length; i++) {
+                const a = meterLogs[i - 1], b = meterLogs[i];
+                if (!a._t || !b._t) continue;
+                const hours = (b._t - a._t) / 3.6e6;
+                const units = (b.eDel - a.eDel) * 1000;
+                if (hours <= 0 || hours > 24 || units < 0) continue;   // ข้ามรอบที่ห่างเกิน 24 ชม. แยกกลางวัน/คืนไม่ได้
+                const mid = new Date((a._t.getTime() + b._t.getTime()) / 2).getHours();
+                if (mid >= DAY_START && mid < DAY_END) { dayU += units; dayH += hours; }
+                else { nightU += units; nightH += hours; }
+            }
+            const first = meterLogs[0], last = meterLogs[meterLogs.length - 1];
+            const days = (first && last && first._t && last._t && last._t > first._t)
+                ? (last._t - first._t) / 86.4e6 : null;
+            rates = {
+                day: dayH > 0 ? dayU / dayH : null,
+                night: nightH > 0 ? nightU / nightH : null,
+                days
+            };
+        }
+
+        // ---------- Render ----------
         function renderDashboard() {
+            computeRates();
             updateTableAndSummaries();
-            initCharts();
+            updateCharts();
             run24hSimulator();
         }
 
         function updateTableAndSummaries() {
             const unitPrice = getUnitPrice();
-            const tbody = document.getElementById('historyTableBody');
+            const tbody = $('historyTableBody');
             tbody.innerHTML = '';
-
             let totalUnits = 0;
 
             meterLogs.forEach((log, index) => {
-                let diffEDel = index > 0 ? log.eDel - meterLogs[index - 1].eDel : 0;
-                let units = diffEDel * 1000;
-                let cost = units * unitPrice;
+                const units = index > 0 ? (log.eDel - meterLogs[index - 1].eDel) * 1000 : 0;
+                const cost = units * unitPrice;
                 if (index > 0) totalUnits += units;
-
                 const tr = document.createElement('tr');
                 tr.className = "hover:bg-slate-800/50 border-b border-slate-800/40";
                 tr.innerHTML = `
-                    <td class="py-2.5 px-3 font-medium">${log.datetime}</td>
-                    <td class="py-2.5 px-3 font-bold text-schneider-500">${formatNum(log.eDel, 3)}</td>
-                    <td class="py-2.5 px-3 text-slate-400">${log.vavg || '-'} V / ${log.iavg || '-'} A</td>
-                    <td class="py-2.5 px-3 font-semibold text-slate-200">${log.ptot || '-'} kW</td>
-                    <td class="py-2.5 px-3 font-bold text-cyan-400">${index === 0 ? '0' : formatNum(units, 0)}</td>
-                    <td class="py-2.5 px-3 font-bold text-emerald-400">${index === 0 ? '0.00' : formatNum(cost, 2)}</td>
-                `;
+                    <td class="py-2.5 px-3 font-medium">${esc(log.datetime)}</td>
+                    <td class="py-2.5 px-3 font-bold text-schneider-500">${formatNum(log.eDel, 2)}</td>
+                    <td class="py-2.5 px-3 text-slate-400">${log.vavg ? esc(log.vavg) : '-'} V / ${log.iavg ? esc(log.iavg) : '-'} A</td>
+                    <td class="py-2.5 px-3 font-semibold text-slate-200">${log.ptot ? esc(log.ptot) : '-'} kW</td>
+                    <td class="py-2.5 px-3 font-bold ${units < 0 ? 'text-red-400' : 'text-cyan-400'}">${index === 0 ? '0' : formatNum(units, 0)}</td>
+                    <td class="py-2.5 px-3 font-bold text-emerald-400">${index === 0 ? '0.00' : formatNum(cost, 2)}</td>`;
                 tbody.appendChild(tr);
             });
 
-            if(meterLogs.length > 0) {
+            if (meterLogs.length === 0) {
+                $('cardLatestEDel').innerText = '-';
+                $('cardLatestDate').innerText = 'ยังไม่มีข้อมูล';
+                $('cardTotalUnits').innerText = '0';
+                $('cardTotalCost').innerText = '0';
+                $('cardDailyUnitsEst').innerText = '-';
+                $('cardMonthlyCostEst').innerText = '-';
+            } else {
                 const latest = meterLogs[meterLogs.length - 1];
-                const first = meterLogs[0];
-                const fallbackTotalUnits = (latest.eDel - first.eDel) * 1000;
-                const finalUnits = totalUnits > 0 ? totalUnits : fallbackTotalUnits;
-                const totalCost = finalUnits * unitPrice;
+                $('cardLatestEDel').innerText = formatNum(latest.eDel, 2);
+                $('cardLatestDate').innerText = latest.datetime;
+                $('cardTotalUnits').innerText = formatNum(totalUnits, 0);
+                $('cardTotalCost').innerText = formatNum(totalUnits * unitPrice, 0);
 
-                document.getElementById('cardLatestEDel').innerText = formatNum(latest.eDel, 2);
-                document.getElementById('cardLatestDate').innerText = latest.datetime;
-                document.getElementById('cardTotalUnits').innerText = formatNum(finalUnits, 0);
-                document.getElementById('cardTotalCost').innerText = formatNum(totalCost, 0);
+                if (rates.days && rates.days > 0) {
+                    const avgDaily = totalUnits / rates.days;
+                    $('cardDailyUnitsEst').innerText = formatNum(avgDaily, 1);
+                    $('cardMonthlyCostEst').innerText = formatNum(avgDaily * 30 * unitPrice, 0);
+                } else {
+                    $('cardDailyUnitsEst').innerText = '-';
+                    $('cardMonthlyCostEst').innerText = '-';
+                }
+            }
 
-                const avgDaily = finalUnits / 21.68;
-                document.getElementById('cardDailyUnitsEst').innerText = formatNum(avgDaily, 1);
-                document.getElementById('cardMonthlyCostEst').innerText = formatNum(avgDaily * 30 * unitPrice, 0);
+            $('cardDayRate').innerText = rates.day != null ? formatNum(rates.day, 1) : '-';
+            $('cardNightRate').innerText = rates.night != null ? formatNum(rates.night, 1) : '-';
+            if (rates.day != null && rates.night != null && rates.night > 0) {
+                const diff = (rates.day / rates.night - 1) * 100;
+                $('cardRateNote').innerText = `กลางวันใช้ไฟ${diff >= 0 ? 'สูง' : 'ต่ำ'}กว่า ${diff >= 0 ? '+' : ''}${formatNum(diff, 1)}%`;
+            } else {
+                $('cardRateNote').innerText = 'ยังไม่มีข้อมูลพอเทียบ';
             }
         }
 
-        function initCharts() {
-            const ctx1 = document.getElementById('cumulativeChart').getContext('2d');
-            if (cumulativeChartInstance) cumulativeChartInstance.destroy();
-            cumulativeChartInstance = new Chart(ctx1, {
-                type: 'line',
-                data: {
-                    labels: meterLogs.map(l => l.datetime),
-                    datasets: [{
-                        data: meterLogs.map(l => l.eDel),
-                        borderColor: '#009639',
-                        backgroundColor: 'rgba(0, 150, 57, 0.15)',
-                        borderWidth: 3, fill: true, tension: 0.3, pointRadius: 4
-                    }]
-                },
-                options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } } }
-            });
+        function chartTextColor() {
+            return document.documentElement.classList.contains('light') ? '#334155' : '#94a3b8';
+        }
 
-            const ctx2 = document.getElementById('dayNightChart').getContext('2d');
-            if (dayNightChartInstance) dayNightChartInstance.destroy();
-            dayNightChartInstance = new Chart(ctx2, {
-                type: 'doughnut',
-                data: {
-                    labels: ['กลางวัน', 'กลางคืน'],
-                    datasets: [{ data: [30.0, 18.1], backgroundColor: ['#f59e0b', '#6366f1'], borderWidth: 0 }]
-                },
-                options: { responsive: true, maintainAspectRatio: false, cutout: '70%', plugins: { legend: { display: false } } }
-            });
+        function updateCharts() {
+            Chart.defaults.color = chartTextColor();
+            const labels = meterLogs.map(l => l.datetime);
+            const perLabels = meterLogs.slice(1).map(l => l.datetime);
+            const perData = meterLogs.slice(1).map((l, i) => (l.eDel - meterLogs[i].eDel) * 1000);
+            const dn = [rates.day ?? DEFAULT_DAY_RATE, rates.night ?? DEFAULT_NIGHT_RATE];
 
-            const ctx3 = document.getElementById('periodConsumptionChart').getContext('2d');
-            if (periodConsumptionChartInstance) periodConsumptionChartInstance.destroy();
-            periodConsumptionChartInstance = new Chart(ctx3, {
-                type: 'bar',
-                data: {
-                    labels: meterLogs.slice(1).map(l => l.datetime),
-                    datasets: [{
-                        data: meterLogs.slice(1).map((l, i) => (l.eDel - meterLogs[i].eDel) * 1000),
-                        backgroundColor: '#06b6d4',
-                        borderRadius: 6
-                    }]
-                },
-                options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } } }
-            });
+            if (!charts.cum) {
+                charts.cum = new Chart($('cumulativeChart'), {
+                    type: 'line',
+                    data: { labels, datasets: [{ data: meterLogs.map(l => l.eDel), borderColor: '#009639', backgroundColor: 'rgba(0,150,57,0.15)', borderWidth: 3, fill: true, tension: 0.3, pointRadius: 4 }] },
+                    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } } }
+                });
+                charts.dn = new Chart($('dayNightChart'), {
+                    type: 'doughnut',
+                    data: { labels: ['กลางวัน', 'กลางคืน'], datasets: [{ data: dn, backgroundColor: ['#f59e0b', '#6366f1'], borderWidth: 0 }] },
+                    options: { responsive: true, maintainAspectRatio: false, cutout: '70%', plugins: { legend: { display: false } } }
+                });
+                charts.per = new Chart($('periodConsumptionChart'), {
+                    type: 'bar',
+                    data: { labels: perLabels, datasets: [{ data: perData, backgroundColor: '#06b6d4', borderRadius: 6 }] },
+                    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } } }
+                });
+            } else {
+                charts.cum.data.labels = labels;
+                charts.cum.data.datasets[0].data = meterLogs.map(l => l.eDel);
+                charts.dn.data.datasets[0].data = dn;
+                charts.per.data.labels = perLabels;
+                charts.per.data.datasets[0].data = perData;
+                Object.values(charts).forEach(c => c.update());
+            }
         }
 
         function run24hSimulator() {
-            const dayH = parseFloat(document.getElementById('simDay').value);
-            const nightH = parseFloat(document.getElementById('simNight').value);
-            const rate = getUnitPrice();
-
-            document.getElementById('simDayVal').innerText = dayH + " ชม.";
-            document.getElementById('simNightVal').innerText = nightH + " ชม.";
-
-            const totalU = (dayH * 30.0) + (nightH * 18.1);
-            document.getElementById('simTotalUnits').innerText = formatNum(totalU, 1) + " kWh";
-            document.getElementById('simTotalCost').innerText = formatNum(totalU * rate, 2) + " บาท";
+            const dayRate = rates.day ?? DEFAULT_DAY_RATE;
+            const nightRate = rates.night ?? DEFAULT_NIGHT_RATE;
+            const dayH = parseFloat($('simDay').value);
+            const nightH = parseFloat($('simNight').value);
+            $('simDayVal').innerText = dayH + " ชม.";
+            $('simNightVal').innerText = nightH + " ชม.";
+            $('simDayRate').innerText = formatNum(dayRate, 1);
+            $('simNightRate').innerText = formatNum(nightRate, 1);
+            $('simRateNote').innerText = (rates.day == null || rates.night == null)
+                ? 'ข้อมูลยังไม่พอคำนวณอัตราจริง จึงใช้ค่าตั้งต้นตัวอย่าง' : 'อัตราคำนวณจากประวัติมิเตอร์จริง';
+            const totalU = dayH * dayRate + nightH * nightRate;
+            $('simTotalUnits').innerText = formatNum(totalU, 1) + " kWh";
+            $('simTotalCost').innerText = formatNum(totalU * getUnitPrice(), 2) + " บาท";
         }
 
+        // ---------- UI ----------
+        function toggleTheme() {
+            const html = document.documentElement;
+            const icon = $('themeIcon');
+            const toLight = html.classList.contains('dark');
+            html.classList.toggle('dark', !toLight);
+            html.classList.toggle('light', toLight);
+            document.body.classList.toggle('bg-slate-950', !toLight);
+            document.body.classList.toggle('text-slate-100', !toLight);
+            document.body.classList.toggle('light-body', toLight);
+            icon.className = toLight ? 'fa-solid fa-sun text-amber-400' : 'fa-solid fa-moon text-slate-300';
+            Chart.defaults.color = chartTextColor();
+            Object.values(charts).forEach(c => c && c.update());
+        }
+
+        function switchTab(tab) {
+            const map = { analytics: ['tabAnalytics', 'tabAnalyticsBtn'], history: ['tabHistory', 'tabHistoryBtn'], simulator: ['tabSimulator', 'tabSimBtn'] };
+            Object.entries(map).forEach(([k, [panel, btn]]) => {
+                $(panel).classList.toggle('hidden', k !== tab);
+                $(btn).className = k === tab
+                    ? "flex-1 py-2 rounded-xl text-center font-bold bg-schneider-600 text-white shadow transition"
+                    : "flex-1 py-2 rounded-xl text-center text-slate-400 hover:text-slate-200 transition";
+            });
+        }
+
+        // ---------- Camera / file ----------
         async function openCameraModal() {
-            document.getElementById('cameraModal').classList.remove('hidden');
-            mediaStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
-            document.getElementById('webcamVideo').srcObject = mediaStream;
+            if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+                toast('เบราว์เซอร์นี้ไม่รองรับกล้อง (ต้องเปิดผ่าน HTTPS) ลองใช้ "เลือกคลังภาพ"', 'err');
+                return;
+            }
+            try {
+                mediaStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment', width: { ideal: 1920 }, height: { ideal: 1080 } } });
+                $('webcamVideo').srcObject = mediaStream;
+                $('cameraModal').classList.remove('hidden');
+            } catch (e) {
+                console.error(e);
+                toast('เปิดกล้องไม่ได้: กรุณาอนุญาตการใช้กล้อง หรือใช้ "เลือกคลังภาพ"', 'err');
+            }
         }
 
         function closeCameraModal() {
             if (mediaStream) { mediaStream.getTracks().forEach(t => t.stop()); mediaStream = null; }
-            document.getElementById('cameraModal').classList.add('hidden');
+            $('cameraModal').classList.add('hidden');
         }
 
         function captureCameraPhoto() {
-            const video = document.getElementById('webcamVideo');
-            const canvas = document.getElementById('hiddenCanvas');
-            canvas.width = video.videoWidth || 640; canvas.height = video.videoHeight || 480;
+            const video = $('webcamVideo');
+            if (!video.videoWidth) { toast('กล้องยังไม่พร้อม ลองอีกครั้ง', 'err'); return; }
+            const canvas = $('hiddenCanvas');
+            canvas.width = video.videoWidth; canvas.height = video.videoHeight;
             canvas.getContext('2d').drawImage(video, 0, 0);
+            const dataUrl = canvas.toDataURL('image/jpeg', 0.92);
             closeCameraModal();
-            processImageWithOCR(canvas.toDataURL('image/jpeg'));
+            processImage(dataUrl);
         }
 
         function handleFileUpload(e) {
+            const file = e.target.files && e.target.files[0];
+            if (!file) return;
             const reader = new FileReader();
-            reader.onload = ev => processImageWithOCR(ev.target.result);
-            reader.readAsDataURL(e.target.files[0]);
+            reader.onload = ev => processImage(ev.target.result);
+            reader.readAsDataURL(file);
+            e.target.value = '';   // ให้เลือกไฟล์เดิมซ้ำได้
         }
 
-        function processImageWithOCR(src) {
-            document.getElementById('ocrModal').classList.remove('hidden');
-            const img = new Image();
-            img.crossOrigin = "anonymous";
-            img.onload = function() {
-                const canvas = document.getElementById('hiddenCanvas');
-                const ctx = canvas.getContext('2d');
-                canvas.width = img.width;
-                canvas.height = img.height;
-                ctx.drawImage(img, 0, 0);
-                
-                Tesseract.recognize(
-                    canvas.toDataURL('image/jpeg'),
-                    'eng',
-                    { logger: m => console.log(m) }
-                ).then(({ data: { text } }) => {
-                    const eDelMatch = text.match(/11[0-9]\.[0-9]{2,3}/) || text.match(/[0-9]{3}\.[0-9]{2}/);
-                    const ptotMatch = text.match(/([0-9]{1,2}\.[0-9]{4})\s*k?W/i) || text.match(/[0-9]{2}\.[0-9]{2,4}/);
-                    const vavgMatch = text.match(/23[0-9]\.[0-9]{1,2}/) || text.match(/[0-9]{3}\.[0-9]{2}/);
+        // ย่อภาพก่อนส่ง (ลดขนาด/เวลา/โควตา)
+        function resizeToJpeg(src, maxW = MAX_IMG_WIDTH) {
+            return new Promise((resolve, reject) => {
+                const img = new Image();
+                img.onload = () => {
+                    const scale = Math.min(1, maxW / img.width);
+                    const c = $('hiddenCanvas');
+                    c.width = Math.round(img.width * scale);
+                    c.height = Math.round(img.height * scale);
+                    c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+                    resolve(c.toDataURL('image/jpeg', 0.85));
+                };
+                img.onerror = () => reject(new Error('เปิดรูปภาพไม่ได้'));
+                img.src = src;
+            });
+        }
 
-                    const lastEDel = meterLogs.length > 0 ? meterLogs[meterLogs.length - 1].eDel : 123.7;
+        // ---------- AI Vision ----------
+        async function processImage(src) {
+            const myId = ++ocrRequestId;
+            resetOcrForm();
+            $('ocrModal').classList.remove('hidden');
+            $('ocrLoading').classList.remove('hidden');
+            $('ocrSubmitBtn').disabled = true;
 
-                    document.getElementById('extractEDel').value = eDelMatch ? eDelMatch[0] : lastEDel.toFixed(3);
-                    document.getElementById('extractPtot').value = ptotMatch ? ptotMatch[1] : "16.246";
-                    document.getElementById('extractVavg').value = vavgMatch ? vavgMatch[0] : "235.82";
-                }).catch(err => {
-                    console.error(err);
-                    document.getElementById('extractEDel').value = "123.700";
-                    document.getElementById('extractPtot').value = "16.246";
-                    document.getElementById('extractVavg').value = "235.82";
+            try {
+                const jpeg = await resizeToJpeg(src);
+                $('ocrPreview').src = jpeg;
+                const base64 = jpeg.split(',')[1];
+
+                const res = await fetch(SHEET_API_URL, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'text/plain;charset=utf-8' },   // ไม่ติด preflight
+                    body: JSON.stringify({ action: 'ocr', image: base64, mime: 'image/jpeg' })
                 });
-            };
-            img.src = src;
+                const out = await res.json();
+                if (myId !== ocrRequestId) return;   // ผู้ใช้ปิด/สแกนใหม่แล้ว
+
+                if (!out.ok) throw new Error(out.error || 'AI อ่านค่าไม่สำเร็จ');
+                const d = out.data;
+                if (d.edel != null) $('extractEDel').value = d.edel;
+                if (d.ptot != null) $('extractPtot').value = d.ptot;
+                if (d.vavg != null) $('extractVavg').value = d.vavg;
+                if (d.iavg != null) $('extractIavg').value = d.iavg;
+                validateForm(d.note, d.readable === false);
+            } catch (err) {
+                if (myId !== ocrRequestId) return;
+                console.error(err);
+                showWarnings([{ level: 'err', text: 'อ่านค่าอัตโนมัติไม่สำเร็จ: ' + err.message + ' — กรอกค่าด้วยตัวเอง หรือถ่ายภาพใหม่' }]);
+            } finally {
+                if (myId === ocrRequestId) {
+                    $('ocrLoading').classList.add('hidden');
+                    $('ocrSubmitBtn').disabled = false;
+                }
+            }
         }
 
-        function closeOcrModal() { document.getElementById('ocrModal').classList.add('hidden'); }
+        function resetOcrForm() {
+            ['extractEDel', 'extractPtot', 'extractVavg', 'extractIavg'].forEach(id => { $(id).value = ''; $(id).classList.remove('field-warn', 'field-err'); });
+            $('ocrWarnings').innerHTML = '';
+            $('ocrPreview').removeAttribute('src');
+        }
+
+        function showWarnings(list) {
+            $('ocrWarnings').innerHTML = list.map(w =>
+                `<div class="px-2.5 py-1.5 rounded-lg border ${w.level === 'err' ? 'bg-red-500/10 border-red-500/30 text-red-300' : 'bg-amber-500/10 border-amber-500/30 text-amber-300'}">
+                    <i class="fa-solid fa-triangle-exclamation mr-1"></i>${esc(w.text)}</div>`).join('');
+        }
+
+        // ตรวจความสมเหตุสมผลของค่า (แค่เตือน ไม่บล็อก ยกเว้นช่องว่าง)
+        function validateForm(aiNote, unreadable) {
+            const warns = [];
+            const f = { edel: $('extractEDel'), ptot: $('extractPtot'), vavg: $('extractVavg'), iavg: $('extractIavg') };
+            Object.values(f).forEach(el => el.classList.remove('field-warn', 'field-err'));
+
+            if (unreadable) warns.push({ level: 'warn', text: 'AI แจ้งว่าภาพอ่านยากบางส่วน โปรดตรวจเทียบค่ากับภาพ' });
+            if (aiNote) warns.push({ level: 'warn', text: 'AI: ' + aiNote });
+
+            const edel = parseFloat(f.edel.value), ptot = parseFloat(f.ptot.value),
+                  vavg = parseFloat(f.vavg.value), iavg = parseFloat(f.iavg.value);
+
+            Object.values(f).forEach(el => { if (el.value === '') el.classList.add('field-err'); });
+            if (Object.values(f).some(el => el.value === '')) {
+                warns.push({ level: 'err', text: 'ช่องที่ขอบแดงอ่านไม่ได้ กรุณากรอกจากหน้าจอมิเตอร์' });
+            }
+
+            if (!isNaN(vavg) && (vavg < 180 || vavg > 260)) {
+                f.vavg.classList.add('field-warn');
+                warns.push({ level: 'warn', text: `Vavg ${vavg} V ผิดช่วงปกติ (180–260 V)` });
+            }
+            if (!isNaN(edel) && meterLogs.length) {
+                const last = meterLogs[meterLogs.length - 1].eDel;
+                if (edel < last) {
+                    f.edel.classList.add('field-warn');
+                    warns.push({ level: 'warn', text: `E Del ต่ำกว่าค่าครั้งก่อน (${formatNum(last, 2)} MWh) — อาจอ่านผิด หรือมิเตอร์ถูกรีเซ็ต` });
+                } else if (!isNaN(ptot)) {
+                    const jumpKwh = (edel - last) * 1000;
+                    const maxPlausible = Math.max(ptot, 1) * 24 * 31;   // เกินกว่าใช้เต็มเดือนที่โหลดปัจจุบัน
+                    if (jumpKwh > maxPlausible) {
+                        f.edel.classList.add('field-warn');
+                        warns.push({ level: 'warn', text: `E Del เพิ่มขึ้น ${formatNum(jumpKwh, 0)} kWh จากครั้งก่อน สูงผิดปกติ โปรดตรวจเลข` });
+                    }
+                }
+            }
+            if (!isNaN(vavg) && !isNaN(iavg) && !isNaN(ptot)) {
+                // ตรวจคร่าวๆ: kVA ≈ V*I*3/1000 (3 เฟสสมมติ), ptot ไม่ควรเกินมาก
+                const kva = vavg * iavg * 3 / 1000;
+                if (ptot > kva * 1.15 + 0.5) {
+                    f.ptot.classList.add('field-warn');
+                    warns.push({ level: 'warn', text: 'Ptot สูงเกินกว่าที่ V×I รองรับ โปรดตรวจเลขอีกครั้ง' });
+                }
+            }
+            showWarnings(warns);
+        }
+
+        function closeOcrModal() {
+            ocrRequestId++;   // ยกเลิกผลที่ยังค้างอยู่
+            $('ocrModal').classList.add('hidden');
+        }
 
         async function saveExtractedData(e) {
             e.preventDefault();
-            const now = new Date();
-            const thaiTimeStr = now.toLocaleString("sv-SE", { timeZone: "Asia/Bangkok" }).replace(' ', ' ');
-
-            const newEDel = parseFloat(document.getElementById('extractEDel').value);
-            const prevEDel = meterLogs.length > 0 ? meterLogs[meterLogs.length - 1].eDel : newEDel;
-            const unitUsed = Math.max(0, (newEDel - prevEDel) * 1000);
-            const cost = unitUsed * getUnitPrice();
-
             const payload = {
-                datetime: thaiTimeStr,
-                edel: newEDel,
-                ptot: parseFloat(document.getElementById('extractPtot').value),
-                vavg: parseFloat(document.getElementById('extractVavg').value),
-                iavg: 23.85,
-                unit_used: Math.round(unitUsed * 100) / 100,
-                cost: Math.round(cost * 100) / 100
+                action: 'save',
+                edel: parseFloat($('extractEDel').value),
+                ptot: parseFloat($('extractPtot').value),
+                vavg: parseFloat($('extractVavg').value),
+                iavg: parseFloat($('extractIavg').value),
+                unitPrice: getUnitPrice()
             };
-
-            if(SHEET_API_URL) {
-                await fetch(SHEET_API_URL, { method: 'POST', mode: 'no-cors', body: JSON.stringify(payload) });
-                alert("ส่งข้อมูลเข้า Google Sheets เรียบร้อยแล้ว!");
-                setTimeout(fetchSheetData, 1500);
+            if (![payload.edel, payload.ptot, payload.vavg, payload.iavg].every(isFinite)) {
+                toast('กรุณากรอกค่าให้ครบทุกช่อง', 'err');
+                return;
             }
-            closeOcrModal();
+            const btn = $('ocrSubmitBtn');
+            btn.disabled = true;
+            try {
+                const res = await fetch(SHEET_API_URL, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+                    body: JSON.stringify(payload)
+                });
+                const out = await res.json();
+                if (!out.ok) throw new Error(out.error || 'บันทึกไม่สำเร็จ');
+                toast('บันทึกลง Google Sheets เรียบร้อย');
+                closeOcrModal();
+                fetchSheetData();
+            } catch (err) {
+                console.error(err);
+                toast('ส่งข้อมูลไม่สำเร็จ: ' + err.message, 'err');
+            } finally {
+                btn.disabled = false;
+            }
         }
+
+        window.onload = fetchSheetData;
     </script>
 </body>
 </html>
