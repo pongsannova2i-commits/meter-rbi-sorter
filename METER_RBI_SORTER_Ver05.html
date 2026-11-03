@@ -119,30 +119,33 @@
             </div>
 
             <div class="glass-card p-4 rounded-2xl">
-                <p class="text-[11px] font-semibold uppercase tracking-wider text-slate-400">หน่วยไฟฟ้ารวมช่วงนี้</p>
+                <p class="text-[11px] font-semibold uppercase tracking-wider text-slate-400">ใช้ไฟแล้ว <span id="cardMonthName">เดือนนี้</span></p>
                 <div class="flex items-baseline space-x-1 mt-1">
                     <span id="cardTotalUnits" class="text-2xl font-extrabold text-cyan-400">0</span>
                     <span class="text-xs font-medium text-slate-400">kWh</span>
                 </div>
-                <p class="text-[10px] text-slate-400 mt-1">คิดเป็น: <span id="cardTotalCost" class="text-emerald-400 font-bold">0</span> ฿</p>
+                <p class="text-[10px] text-slate-400 mt-1">ค่าไฟสะสม <span id="cardTotalCost" class="text-emerald-400 font-bold">0</span> ฿</p>
+                <p id="cardMonthNote" class="text-[10px] text-slate-500 mt-0.5 truncate">-</p>
             </div>
 
             <div class="glass-card p-4 rounded-2xl">
-                <p class="text-[11px] font-semibold uppercase tracking-wider text-slate-400">อัตราโหลดเฉลี่ย</p>
+                <p class="text-[11px] font-semibold uppercase tracking-wider text-slate-400">โหลดเฉลี่ย <span class="normal-case text-slate-500">(14 วันล่าสุด)</span></p>
                 <div class="flex items-center justify-between mt-1">
-                    <span class="text-xs text-amber-400 font-bold"><i class="fa-solid fa-sun"></i> <span id="cardDayRate">-</span> <span class="text-[9px] text-slate-400">u/h</span></span>
-                    <span class="text-xs text-indigo-400 font-bold"><i class="fa-solid fa-moon"></i> <span id="cardNightRate">-</span> <span class="text-[9px] text-slate-400">u/h</span></span>
+                    <span class="text-xs text-amber-400 font-bold"><i class="fa-solid fa-sun"></i> <span id="cardDayRate">-</span> <span class="text-[9px] text-slate-400">kW</span></span>
+                    <span class="text-xs text-indigo-400 font-bold"><i class="fa-solid fa-moon"></i> <span id="cardNightRate">-</span> <span class="text-[9px] text-slate-400">kW</span></span>
                 </div>
                 <p id="cardRateNote" class="text-[10px] text-amber-300 mt-1">ยังไม่มีข้อมูลพอ</p>
+                <p class="text-[10px] text-slate-500 mt-0.5">กลางวัน 06–18 น. / กลางคืน 18–06 น.</p>
             </div>
 
             <div class="glass-card p-4 rounded-2xl">
-                <p class="text-[11px] font-semibold uppercase tracking-wider text-slate-400">ประมาณการค่าไฟ/เดือน</p>
+                <p class="text-[11px] font-semibold uppercase tracking-wider text-slate-400">คาดการณ์ค่าไฟสิ้นเดือน</p>
                 <div class="flex items-baseline space-x-1 mt-1">
                     <span id="cardMonthlyCostEst" class="text-2xl font-extrabold text-indigo-400">-</span>
                     <span class="text-xs font-medium text-slate-400">บาท</span>
                 </div>
-                <p class="text-[10px] text-slate-400 mt-1">เฉลี่ย <span id="cardDailyUnitsEst" class="text-slate-200 font-bold">-</span> หน่วย/วัน</p>
+                <p id="cardProjNote" class="text-[10px] text-slate-400 mt-1">-</p>
+                <p class="text-[10px] text-slate-500 mt-0.5">เฉลี่ย <span id="cardDailyUnitsEst" class="text-slate-300 font-bold">-</span> หน่วย/วัน (14 วันล่าสุด)</p>
             </div>
         </section>
 
@@ -429,27 +432,60 @@
             renderDashboard();
         }
 
-        // คำนวณอัตราโหลดกลางวัน/กลางคืน และจำนวนวันจากข้อมูลจริง
+        // ชั่วโมงของช่วง [t0,t1] ที่ตกในเวลากลางวัน (ทีละ 10 นาที)
+        function dayHoursIn(t0, t1) {
+            let h = 0;
+            for (let t = t0 + 3e5; t < t1; t += 6e5) {
+                const hr = new Date(t).getHours();
+                if (hr >= DAY_START && hr < DAY_END) h += 1 / 6;
+            }
+            return h;
+        }
+
+        // คำนวณจากข้อมูลจริง: โหลดกลางวัน/คืน (14 วันล่าสุด), ค่าเฉลี่ยต่อวัน, ยอดสะสมของเดือน
         function computeRates() {
+            const WINDOW = 14 * 86.4e6;
+            const first = meterLogs[0], last = meterLogs[meterLogs.length - 1];
+            rates = { day: null, night: null, days: null, recentDaily: null, month: null };
+            if (!last || !last._t) return;
+            const cutoff = last._t.getTime() - WINDOW;
+
+            // 1) โหลดกลางวัน/กลางคืน: แบ่งแต่ละรอบตามสัดส่วนชั่วโมงที่ตกในกลางวัน/คืน
             let dayU = 0, dayH = 0, nightU = 0, nightH = 0;
             for (let i = 1; i < meterLogs.length; i++) {
                 const a = meterLogs[i - 1], b = meterLogs[i];
-                if (!a._t || !b._t) continue;
+                if (!a._t || !b._t || b._t.getTime() < cutoff) continue;
                 const hours = (b._t - a._t) / 3.6e6;
                 const units = (b.eDel - a.eDel) * 1000;
-                if (hours <= 0 || hours > 24 || units < 0) continue;   // ข้ามรอบที่ห่างเกิน 24 ชม. แยกกลางวัน/คืนไม่ได้
-                const mid = new Date((a._t.getTime() + b._t.getTime()) / 2).getHours();
-                if (mid >= DAY_START && mid < DAY_END) { dayU += units; dayH += hours; }
-                else { nightU += units; nightH += hours; }
+                if (hours <= 0 || hours > 24 || units < 0) continue;   // ข้ามรอบที่ห่างเกิน 24 ชม.
+                const dH = dayHoursIn(a._t.getTime(), b._t.getTime());
+                dayU += units * dH / hours; dayH += dH;
+                nightU += units * (hours - dH) / hours; nightH += hours - dH;
             }
-            const first = meterLogs[0], last = meterLogs[meterLogs.length - 1];
-            const days = (first && last && first._t && last._t && last._t > first._t)
-                ? (last._t - first._t) / 86.4e6 : null;
-            rates = {
-                day: dayH > 0 ? dayU / dayH : null,
-                night: nightH > 0 ? nightU / nightH : null,
-                days
-            };
+            rates.day = dayH >= 1 ? dayU / dayH : null;
+            rates.night = nightH >= 1 ? nightU / nightH : null;
+
+            // 2) ค่าเฉลี่ยต่อวัน จาก 14 วันล่าสุด
+            let ref = meterLogs.find(l => l._t && l._t.getTime() >= cutoff);
+            if (ref === last && meterLogs.length > 1) ref = meterLogs[meterLogs.length - 2];
+            const d = ref && ref._t ? (last._t - ref._t) / 86.4e6 : 0;
+            if (d > 0 && last.eDel >= ref.eDel) rates.recentDaily = (last.eDel - ref.eDel) * 1000 / d;
+
+            // 3) ยอดสะสมของเดือน (เดือนของการอ่านล่าสุด): นับจากการอ่านสุดท้ายก่อนต้นเดือน
+            const ms = new Date(last._t.getFullYear(), last._t.getMonth(), 1);
+            const me = new Date(last._t.getFullYear(), last._t.getMonth() + 1, 1);
+            let base = null;
+            for (const l of meterLogs) { if (l._t && l._t < ms) base = l; }
+            let fromStart = !!base;
+            if (!base) base = meterLogs.find(l => l._t && l._t >= ms);
+            if (base && last.eDel >= base.eDel) {
+                rates.month = {
+                    units: (last.eDel - base.eDel) * 1000,
+                    since: base._t, fromStart,
+                    remainDays: Math.max(0, (me - last._t) / 86.4e6),
+                    name: last._t.toLocaleDateString('th-TH', { month: 'long' })
+                };
+            }
         }
 
         // ---------- Render ----------
@@ -482,27 +518,52 @@
                 tbody.appendChild(tr);
             });
 
+            const fmtD = d => d ? d.toLocaleDateString('th-TH', { day: 'numeric', month: 'short' }) + ' ' +
+                String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0') : '';
             if (meterLogs.length === 0) {
                 $('cardLatestEDel').innerText = '-';
                 $('cardLatestDate').innerText = 'ยังไม่มีข้อมูล';
                 $('cardTotalUnits').innerText = '0';
                 $('cardTotalCost').innerText = '0';
+                $('cardMonthNote').innerText = '-';
                 $('cardDailyUnitsEst').innerText = '-';
                 $('cardMonthlyCostEst').innerText = '-';
+                $('cardProjNote').innerText = '-';
             } else {
                 const latest = meterLogs[meterLogs.length - 1];
                 $('cardLatestEDel').innerText = formatNum(latest.eDel, 2);
-                $('cardLatestDate').innerText = latest.datetime;
-                $('cardTotalUnits').innerText = formatNum(totalUnits, 0);
-                $('cardTotalCost').innerText = formatNum(totalUnits * unitPrice, 0);
+                // บอกความสดของข้อมูล เผื่อวันนี้ยังไม่มีการอ่านใหม่
+                let age = '';
+                if (latest._t) {
+                    const h = (Date.now() - latest._t.getTime()) / 3.6e6;
+                    age = h < 1 ? ' · เมื่อสักครู่' : h < 36 ? ' · ' + Math.floor(h) + ' ชม.ที่แล้ว' : ' · ' + Math.floor(h / 24) + ' วันที่แล้ว';
+                }
+                $('cardLatestDate').innerText = latest.datetime + age;
+                $('cardLatestDate').className = 'text-[10px] mt-1 truncate ' + (latest._t && Date.now() - latest._t.getTime() > 36 * 3.6e6 ? 'text-amber-400' : 'text-slate-400');
 
-                if (rates.days && rates.days > 0) {
-                    const avgDaily = totalUnits / rates.days;
-                    $('cardDailyUnitsEst').innerText = formatNum(avgDaily, 1);
-                    $('cardMonthlyCostEst').innerText = formatNum(avgDaily * 30 * unitPrice, 0);
+                const m = rates.month;
+                if (m) {
+                    $('cardMonthName').innerText = m.name;
+                    $('cardTotalUnits').innerText = formatNum(m.units, 0);
+                    $('cardTotalCost').innerText = formatNum(m.units * unitPrice, 0);
+                    $('cardMonthNote').innerText = (m.fromStart ? 'นับจากเลขมิเตอร์ ' : 'นับจากแถวแรกของเดือน ') + fmtD(m.since) + ' ถึง ' + fmtD(latest._t);
+                } else {
+                    $('cardMonthName').innerText = 'เดือนนี้';
+                    $('cardTotalUnits').innerText = '-';
+                    $('cardTotalCost').innerText = '-';
+                    $('cardMonthNote').innerText = 'ยังคำนวณไม่ได้';
+                }
+
+                if (rates.recentDaily != null && m) {
+                    const daily = rates.recentDaily;
+                    const projUnits = m.units + daily * m.remainDays;
+                    $('cardDailyUnitsEst').innerText = formatNum(daily, 0);
+                    $('cardMonthlyCostEst').innerText = formatNum(projUnits * unitPrice, 0);
+                    $('cardProjNote').innerText = 'ใช้แล้ว ' + formatNum(m.units * unitPrice, 0) + ' ฿ + อีก ' + formatNum(m.remainDays, 1) + ' วัน × ' + formatNum(daily, 0) + ' หน่วย';
                 } else {
                     $('cardDailyUnitsEst').innerText = '-';
                     $('cardMonthlyCostEst').innerText = '-';
+                    $('cardProjNote').innerText = 'ข้อมูลยังไม่พอ';
                 }
             }
 
