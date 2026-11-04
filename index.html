@@ -254,17 +254,17 @@
                 <div class="space-y-4">
                     <div>
                         <div class="flex justify-between text-xs mb-1">
-                            <span class="text-slate-300 font-medium"><i class="fa-solid fa-sun text-amber-400"></i> ชั่วโมงใช้งานกลางวัน (<span id="simDayRate">-</span> หน่วย/ชม.)</span>
-                            <span id="simDayVal" class="text-amber-400 font-bold">10 ชม.</span>
+                            <span class="text-slate-300 font-medium"><i class="fa-solid fa-sun text-amber-400"></i> ชั่วโมงใช้งานกลางวัน (<span id="simDayRate">-</span> kW)</span>
+                            <span id="simDayVal" class="text-amber-400 font-bold">12 ชม.</span>
                         </div>
-                        <input type="range" id="simDay" min="0" max="24" value="10" class="w-full h-2 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-amber-400" oninput="run24hSimulator()">
+                        <input type="range" id="simDay" min="0" max="24" value="12" class="w-full h-2 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-amber-400" oninput="syncSim(this)">
                     </div>
                     <div>
                         <div class="flex justify-between text-xs mb-1">
-                            <span class="text-slate-300 font-medium"><i class="fa-solid fa-moon text-indigo-400"></i> ชั่วโมงใช้งานกลางคืน (<span id="simNightRate">-</span> หน่วย/ชม.)</span>
-                            <span id="simNightVal" class="text-indigo-400 font-bold">14 ชม.</span>
+                            <span class="text-slate-300 font-medium"><i class="fa-solid fa-moon text-indigo-400"></i> ชั่วโมงใช้งานกลางคืน (<span id="simNightRate">-</span> kW)</span>
+                            <span id="simNightVal" class="text-indigo-400 font-bold">12 ชม.</span>
                         </div>
-                        <input type="range" id="simNight" min="0" max="24" value="14" class="w-full h-2 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-indigo-400" oninput="run24hSimulator()">
+                        <input type="range" id="simNight" min="0" max="24" value="12" class="w-full h-2 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-indigo-400" oninput="syncSim(this)">
                     </div>
                 </div>
                 <div class="bg-slate-900/90 p-4 rounded-xl border border-slate-800 space-y-2 mt-2">
@@ -712,6 +712,13 @@
                 charts.cum.options.plugins.tooltip = tip; charts.per.options.plugins.tooltip = tip;
                 Object.values(charts).forEach(c => c.update());
             }
+        }
+
+        // ชั่วโมงกลางวัน + กลางคืน ต้องรวมกันเป็น 24 ชม. เสมอ
+        function syncSim(el) {
+            const v = parseFloat(el.value);
+            (el.id === 'simDay' ? $('simNight') : $('simDay')).value = 24 - v;
+            run24hSimulator();
         }
 
         function run24hSimulator() {
