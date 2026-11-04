@@ -167,7 +167,7 @@
             <div class="glass-card p-4 rounded-2xl">
                 <div class="flex items-center justify-between mb-3">
                     <h3 class="text-xs font-bold text-slate-200 flex items-center gap-1.5">
-                        <i class="fa-solid fa-chart-area text-schneider-500"></i> แนวโน้มการใช้ไฟสะสม (MWh)
+                        <i class="fa-solid fa-chart-area text-schneider-500"></i> เลขมิเตอร์สิ้นเดือน (MWh)
                     </h3>
                     <span class="text-[10px] text-slate-400 bg-slate-900 px-2 py-0.5 rounded-md border border-slate-800">Google Sheets Live</span>
                 </div>
@@ -183,7 +183,7 @@
                 </div>
                 <div class="glass-card p-4 rounded-2xl">
                     <h3 class="text-xs font-bold text-slate-200 mb-2 flex items-center gap-1.5">
-                        <i class="fa-solid fa-chart-column text-cyan-400"></i> ปริมาณไฟที่ใช้แต่ละรอบ (kWh)
+                        <i class="fa-solid fa-chart-column text-cyan-400"></i> ปริมาณไฟที่ใช้รายเดือน (kWh)
                     </h3>
                     <div class="relative w-full h-48"><canvas id="periodConsumptionChart"></canvas></div>
                 </div>
@@ -407,7 +407,7 @@
                         vavg: parseFloat(item.vavg) || 0,
                         iavg: parseFloat(item.iavg) || 0,
                         ptot: parseFloat(item.ptot) || 0
-                    })).filter(item => item.eDel > 0);
+                    })).filter((item, i) => item.eDel > 0 || (i === 0 && data[0] && Number(data[0].edel) === 0 && data.length > 1));
 
                     // เรียงตามเวลา (ถ้าอ่านเวลาได้ครบทุกแถว) ไม่เช่นนั้นคงลำดับเดิมจากชีต
                     const times = meterLogs.map(l => parseDT(l.datetime));
@@ -496,27 +496,76 @@
             run24hSimulator();
         }
 
+        // จัดกลุ่มตามเดือน: เดือนที่ผ่านแล้ว = ค่าสุดท้ายของเดือน, เดือนล่าสุด = ยังไม่ครบ (ใช้ค่าล่าสุดที่บันทึก)
+        let monthsCache = [];
+        function buildMonths() {
+            if (!meterLogs.length || !meterLogs.every(l => l._t)) return null;
+            const groups = [];
+            meterLogs.forEach(l => {
+                const key = l._t.getFullYear() * 12 + l._t.getMonth();
+                let g = groups[groups.length - 1];
+                if (!g || g.key !== key) {
+                    g = { key, logs: [], label: l._t.toLocaleDateString('th-TH', { month: 'short', year: '2-digit' }),
+                          name: l._t.toLocaleDateString('th-TH', { month: 'long', year: 'numeric' }) };
+                    groups.push(g);
+                }
+                g.logs.push(l);
+            });
+            groups.forEach((g, i) => {
+                g.last = g.logs[g.logs.length - 1];
+                g.base = i > 0 ? groups[i - 1].last : g.logs[0];     // เดือนแรก: เทียบกับค่าแรกสุด
+                g.usage = Math.max(0, (g.last.eDel - g.base.eDel) * 1000);
+                g.complete = i < groups.length - 1;
+            });
+            return groups;
+        }
+
+        function logRow(log, units, showUnits, unitPrice, extra) {
+            const tr = document.createElement('tr');
+            tr.className = 'hover:bg-slate-800/50 border-b border-slate-800/40';
+            tr.innerHTML = `
+                <td class="py-2.5 px-3 font-medium">${esc(log.datetime)}${extra || ''}</td>
+                <td class="py-2.5 px-3 font-bold text-schneider-500">${formatNum(log.eDel, 2)}</td>
+                <td class="py-2.5 px-3 text-slate-400">${log.vavg ? esc(log.vavg) : '-'} V / ${log.iavg ? esc(log.iavg) : '-'} A</td>
+                <td class="py-2.5 px-3 font-semibold text-slate-200">${log.ptot ? esc(log.ptot) : '-'} kW</td>
+                <td class="py-2.5 px-3 font-bold ${units < 0 ? 'text-red-400' : 'text-cyan-400'}">${showUnits ? formatNum(units, 0) : '0'}</td>
+                <td class="py-2.5 px-3 font-bold text-emerald-400">${showUnits ? formatNum(units * unitPrice, 2) : '0.00'}</td>`;
+            return tr;
+        }
+
         function updateTableAndSummaries() {
             const unitPrice = getUnitPrice();
             const tbody = $('historyTableBody');
             tbody.innerHTML = '';
-            let totalUnits = 0;
+            monthsCache = buildMonths() || [];
 
-            meterLogs.forEach((log, index) => {
-                const units = index > 0 ? (log.eDel - meterLogs[index - 1].eDel) * 1000 : 0;
-                const cost = units * unitPrice;
-                if (index > 0) totalUnits += units;
-                const tr = document.createElement('tr');
-                tr.className = "hover:bg-slate-800/50 border-b border-slate-800/40";
-                tr.innerHTML = `
-                    <td class="py-2.5 px-3 font-medium">${esc(log.datetime)}</td>
-                    <td class="py-2.5 px-3 font-bold text-schneider-500">${formatNum(log.eDel, 2)}</td>
-                    <td class="py-2.5 px-3 text-slate-400">${log.vavg ? esc(log.vavg) : '-'} V / ${log.iavg ? esc(log.iavg) : '-'} A</td>
-                    <td class="py-2.5 px-3 font-semibold text-slate-200">${log.ptot ? esc(log.ptot) : '-'} kW</td>
-                    <td class="py-2.5 px-3 font-bold ${units < 0 ? 'text-red-400' : 'text-cyan-400'}">${index === 0 ? '0' : formatNum(units, 0)}</td>
-                    <td class="py-2.5 px-3 font-bold text-emerald-400">${index === 0 ? '0.00' : formatNum(cost, 2)}</td>`;
-                tbody.appendChild(tr);
-            });
+            if (!monthsCache.length) {
+                // อ่านเวลาไม่ได้ครบ: แสดงทุกรายการตามลำดับในชีต
+                meterLogs.forEach((log, i) => tbody.appendChild(
+                    logRow(log, i > 0 ? (log.eDel - meterLogs[i - 1].eDel) * 1000 : 0, i > 0, unitPrice)));
+            } else {
+                // เดือนล่าสุดอยู่บนสุด
+                for (let gi = monthsCache.length - 1; gi >= 0; gi--) {
+                    const g = monthsCache[gi];
+                    const head = document.createElement('tr');
+                    head.className = 'bg-slate-900/80';
+                    head.innerHTML = `<td colspan="6" class="py-2 px-3 text-[11px]">
+                        <span class="font-bold text-slate-100">${esc(g.name)}</span>
+                        <span class="ml-2 px-2 py-0.5 rounded-full border ${g.complete ? 'border-emerald-500/40 text-emerald-300 bg-emerald-500/10' : 'border-amber-500/40 text-amber-300 bg-amber-500/10'}">${g.complete ? 'ครบเดือน · แสดงค่าสุดท้าย' : 'ยังไม่ครบเดือน · แสดงทุกรายการ'}</span>
+                        <span class="ml-2 text-slate-400">รวมใช้ ${formatNum(g.usage, 0)} kWh · ${formatNum(g.usage * unitPrice, 0)} ฿</span></td>`;
+                    tbody.appendChild(head);
+                    if (g.complete) {
+                        tbody.appendChild(logRow(g.last, g.usage, true, unitPrice));
+                    } else {
+                        for (let i = g.logs.length - 1; i >= 0; i--) {
+                            const log = g.logs[i];
+                            const prev = i > 0 ? g.logs[i - 1] : (gi > 0 ? monthsCache[gi - 1].last : null);
+                            const units = prev ? (log.eDel - prev.eDel) * 1000 : 0;
+                            tbody.appendChild(logRow(log, units, !!prev, unitPrice));
+                        }
+                    }
+                }
+            }
 
             const fmtD = d => d ? d.toLocaleDateString('th-TH', { day: 'numeric', month: 'short' }) + ' ' +
                 String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0') : '';
@@ -583,16 +632,22 @@
 
         function updateCharts() {
             Chart.defaults.color = chartTextColor();
-            const labels = meterLogs.map(l => l.datetime);
-            const perLabels = meterLogs.slice(1).map(l => l.datetime);
-            const perData = meterLogs.slice(1).map((l, i) => (l.eDel - meterLogs[i].eDel) * 1000);
+            const months = monthsCache.length ? monthsCache : null;
+            // ไม่มีข้อมูลเวลาครบ: แสดงรายการดิบเหมือนเดิม
+            const labels = months ? months.map(g => g.label + (g.complete ? '' : '*')) : meterLogs.map(l => l.datetime);
+            const cumData = months ? months.map(g => g.last.eDel) : meterLogs.map(l => l.eDel);
+            const perLabels = labels.slice(months ? 0 : 1);
+            const perData = months ? months.map(g => g.usage) : meterLogs.slice(1).map((l, i) => (l.eDel - meterLogs[i].eDel) * 1000);
+            const perColors = months ? months.map(g => g.complete ? '#06b6d4' : 'rgba(6,182,212,0.45)') : '#06b6d4';
             const dn = [rates.day ?? DEFAULT_DAY_RATE, rates.night ?? DEFAULT_NIGHT_RATE];
+            const tip = { callbacks: { afterLabel: ctx => months && months[ctx.dataIndex]
+                ? (months[ctx.dataIndex].complete ? 'ค่าสุดท้ายของเดือน: ' : 'ยังไม่ครบเดือน ค่าล่าสุด: ') + months[ctx.dataIndex].last.datetime : '' } };
 
             if (!charts.cum) {
                 charts.cum = new Chart($('cumulativeChart'), {
                     type: 'line',
-                    data: { labels, datasets: [{ data: meterLogs.map(l => l.eDel), borderColor: '#009639', backgroundColor: 'rgba(0,150,57,0.15)', borderWidth: 3, fill: true, tension: 0.3, pointRadius: 4 }] },
-                    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } } }
+                    data: { labels, datasets: [{ data: cumData, borderColor: '#009639', backgroundColor: 'rgba(0,150,57,0.15)', borderWidth: 3, fill: true, tension: 0.3, pointRadius: 5 }] },
+                    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false }, tooltip: tip } }
                 });
                 charts.dn = new Chart($('dayNightChart'), {
                     type: 'doughnut',
@@ -601,15 +656,17 @@
                 });
                 charts.per = new Chart($('periodConsumptionChart'), {
                     type: 'bar',
-                    data: { labels: perLabels, datasets: [{ data: perData, backgroundColor: '#06b6d4', borderRadius: 6 }] },
-                    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } } }
+                    data: { labels: perLabels, datasets: [{ data: perData, backgroundColor: perColors, borderRadius: 6 }] },
+                    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false }, tooltip: tip } }
                 });
             } else {
                 charts.cum.data.labels = labels;
-                charts.cum.data.datasets[0].data = meterLogs.map(l => l.eDel);
+                charts.cum.data.datasets[0].data = cumData;
                 charts.dn.data.datasets[0].data = dn;
                 charts.per.data.labels = perLabels;
                 charts.per.data.datasets[0].data = perData;
+                charts.per.data.datasets[0].backgroundColor = perColors;
+                charts.cum.options.plugins.tooltip = tip; charts.per.options.plugins.tooltip = tip;
                 Object.values(charts).forEach(c => c.update());
             }
         }
