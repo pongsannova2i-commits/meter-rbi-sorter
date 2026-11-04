@@ -186,28 +186,30 @@
                             <span class="text-[10px] text-slate-400">kW เฉลี่ยรวม</span>
                         </div>
                     </div>
-                    <div class="mt-3 space-y-2 text-[11px]">
-                        <div class="flex items-center gap-2 rounded-xl bg-amber-500/5 border border-amber-500/20 px-3 py-2">
-                            <span class="w-2.5 h-2.5 rounded-full bg-amber-500"></span>
-                            <div class="flex-1"><span class="font-semibold text-slate-100">กลางวัน</span> <span class="text-slate-500">06:00–18:00</span>
-                                <div id="dnDayDetail" class="text-slate-400">-</div></div>
-                            <span id="dnDayPct" class="text-sm font-bold text-amber-400">-</span>
+                    <div class="mt-3 grid grid-cols-2 gap-2 text-[11px]">
+                        <div class="rounded-xl bg-amber-500/5 border border-amber-500/20 px-3 py-2">
+                            <div class="flex items-center justify-between">
+                                <span class="flex items-center gap-1.5 font-semibold text-slate-100"><span class="w-2.5 h-2.5 rounded-full bg-amber-500"></span>กลางวัน</span>
+                                <span id="dnDayPct" class="text-sm font-bold text-amber-400">-</span>
+                            </div>
+                            <div class="text-[10px] text-slate-500">06:00–18:00</div>
+                            <div id="dnDayDetail" class="mt-1 text-slate-400">-</div>
                         </div>
-                        <div class="flex items-center gap-2 rounded-xl bg-indigo-500/5 border border-indigo-500/20 px-3 py-2">
-                            <span class="w-2.5 h-2.5 rounded-full bg-indigo-500"></span>
-                            <div class="flex-1"><span class="font-semibold text-slate-100">กลางคืน</span> <span class="text-slate-500">18:00–06:00</span>
-                                <div id="dnNightDetail" class="text-slate-400">-</div></div>
-                            <span id="dnNightPct" class="text-sm font-bold text-indigo-400">-</span>
+                        <div class="rounded-xl bg-indigo-500/5 border border-indigo-500/20 px-3 py-2">
+                            <div class="flex items-center justify-between">
+                                <span class="flex items-center gap-1.5 font-semibold text-slate-100"><span class="w-2.5 h-2.5 rounded-full bg-indigo-500"></span>กลางคืน</span>
+                                <span id="dnNightPct" class="text-sm font-bold text-indigo-400">-</span>
+                            </div>
+                            <div class="text-[10px] text-slate-500">18:00–06:00</div>
+                            <div id="dnNightDetail" class="mt-1 text-slate-400">-</div>
                         </div>
-                        <div id="dnExtra" class="text-slate-400 space-y-0.5"></div>
-                        <p id="dnNote" class="text-[10px] text-slate-500"></p>
                     </div>
                 </div>
-                <div class="glass-card p-4 rounded-2xl">
+                <div class="glass-card p-4 rounded-2xl flex flex-col">
                     <h3 class="text-xs font-bold text-slate-200 mb-2 flex items-center gap-1.5">
                         <i class="fa-solid fa-chart-column text-cyan-400"></i> ปริมาณไฟที่ใช้รายเดือน (kWh)
                     </h3>
-                    <div class="relative w-full h-48"><canvas id="periodConsumptionChart"></canvas></div>
+                    <div class="relative w-full flex-1 min-h-[12rem]"><canvas id="periodConsumptionChart"></canvas></div>
                 </div>
             </div>
         </div>
@@ -663,22 +665,11 @@
             $('dnCenterVal').textContent = formatNum(tot / 24, 1);
             $('dnDayPct').textContent = formatNum(dKwh / tot * 100, 0) + '%';
             $('dnNightPct').textContent = formatNum(nKwh / tot * 100, 0) + '%';
-            const line = (kw, kwh) => formatNum(kw, 1) + ' kW · ≈ ' + formatNum(kwh, 0) + ' kWh/วัน · ≈ ' + formatNum(kwh * price, 0) + ' ฿/วัน';
-            $('dnDayDetail').textContent = line(dv, dKwh);
-            $('dnNightDetail').textContent = line(nv, nKwh);
-            const extra = [];
-            extra.push('รวมเฉลี่ย ≈ ' + formatNum(tot, 0) + ' kWh/วัน · ≈ ' + formatNum(tot * price, 0) + ' ฿/วัน');
-            if (!sample && Math.abs(d - n) > 0.05) extra.push('กลางวันใช้' + (d > n ? 'มากกว่า' : 'น้อยกว่า') + 'กลางคืน ' + formatNum(Math.abs(d - n), 1) + ' kW (' + formatNum(Math.abs(d / n - 1) * 100, 1) + '%)');
-            const loads = rates.loads || [];
-            if (loads.length >= 2) {
-                const hi = loads.reduce((x, y) => y.kw > x.kw ? y : x), lo = loads.reduce((x, y) => y.kw < x.kw ? y : x);
-                extra.push('รอบที่โหลดสูงสุด ' + formatNum(hi.kw, 1) + ' kW (' + hi.a + ' → ' + hi.b + ')');
-                extra.push('รอบที่โหลดต่ำสุด ' + formatNum(lo.kw, 1) + ' kW (' + lo.a + ' → ' + lo.b + ')');
-            }
-            $('dnExtra').innerHTML = extra.map(t => '<div>• ' + esc(t) + '</div>').join('');
-            $('dnNote').textContent = sample
-                ? 'ข้อมูล 14 วันล่าสุดยังไม่พอ จึงแสดงค่าตัวอย่าง (ไม่ใช่ค่าจริง)'
-                : 'คำนวณจาก ' + loads.length + ' รอบการอ่านใน 14 วันล่าสุด · แต่ละรอบแบ่งตามชั่วโมงกลางวัน/กลางคืนจริง · ค่าเป็นค่าประมาณเพราะอ่านมิเตอร์วันละ 2 ครั้ง';
+            const line = (kw, kwh) => '<div class="text-slate-200 font-bold">' + formatNum(kw, 1) + ' kW</div>' +
+                '<div>≈ ' + formatNum(kwh, 0) + ' kWh/วัน</div><div>≈ ' + formatNum(kwh * price, 0) + ' ฿/วัน</div>';
+            $('dnDayDetail').innerHTML = line(dv, dKwh);
+            $('dnNightDetail').innerHTML = line(nv, nKwh);
+            if (sample) { $('dnDayDetail').innerHTML += '<div class="text-amber-300">ค่าตัวอย่าง</div>'; $('dnNightDetail').innerHTML += '<div class="text-amber-300">ค่าตัวอย่าง</div>'; }
         }
 
         function updateCharts() {
