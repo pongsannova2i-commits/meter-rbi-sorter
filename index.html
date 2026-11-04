@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-    <title>Schneider PM2200 Smart OCR & Electricity Analytics</title>
+    <title>Electricity Record</title>
     <meta name="theme-color" content="#0f172a">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -62,7 +62,7 @@
                 <i class="fa-solid fa-bolt-lightning text-lg"></i>
             </div>
             <div>
-                <h1 class="font-bold text-base md:text-lg bg-gradient-to-r from-schneider-500 via-emerald-400 to-teal-300 bg-clip-text text-transparent">Schneider PM2200</h1>
+                <h1 class="font-bold text-base md:text-lg bg-gradient-to-r from-schneider-500 via-emerald-400 to-teal-300 bg-clip-text text-transparent">Electricity Record</h1>
                 <button id="syncChip" type="button" onclick="fetchSheetData()" aria-live="polite" title="แตะเพื่อโหลดข้อมูลใหม่"
                     class="text-[11px] text-slate-400 flex items-center gap-1.5 text-left">
                     <span id="syncDot" class="w-2 h-2 rounded-full bg-amber-400 pulse-active"></span>
@@ -179,7 +179,29 @@
                     <h3 class="text-xs font-bold text-slate-200 mb-2 flex items-center gap-1.5">
                         <i class="fa-solid fa-clock text-amber-400"></i> โหลดเฉลี่ย กลางวัน vs กลางคืน
                     </h3>
-                    <div class="relative w-full h-48 flex items-center justify-center"><canvas id="dayNightChart"></canvas></div>
+                    <div class="relative w-full h-44 flex items-center justify-center">
+                        <canvas id="dayNightChart"></canvas>
+                        <div class="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
+                            <span id="dnCenterVal" class="text-xl font-extrabold text-slate-100">-</span>
+                            <span class="text-[10px] text-slate-400">kW เฉลี่ยรวม</span>
+                        </div>
+                    </div>
+                    <div class="mt-3 space-y-2 text-[11px]">
+                        <div class="flex items-center gap-2 rounded-xl bg-amber-500/5 border border-amber-500/20 px-3 py-2">
+                            <span class="w-2.5 h-2.5 rounded-full bg-amber-500"></span>
+                            <div class="flex-1"><span class="font-semibold text-slate-100">กลางวัน</span> <span class="text-slate-500">06:00–18:00</span>
+                                <div id="dnDayDetail" class="text-slate-400">-</div></div>
+                            <span id="dnDayPct" class="text-sm font-bold text-amber-400">-</span>
+                        </div>
+                        <div class="flex items-center gap-2 rounded-xl bg-indigo-500/5 border border-indigo-500/20 px-3 py-2">
+                            <span class="w-2.5 h-2.5 rounded-full bg-indigo-500"></span>
+                            <div class="flex-1"><span class="font-semibold text-slate-100">กลางคืน</span> <span class="text-slate-500">18:00–06:00</span>
+                                <div id="dnNightDetail" class="text-slate-400">-</div></div>
+                            <span id="dnNightPct" class="text-sm font-bold text-indigo-400">-</span>
+                        </div>
+                        <div id="dnExtra" class="text-slate-400 space-y-0.5"></div>
+                        <p id="dnNote" class="text-[10px] text-slate-500"></p>
+                    </div>
                 </div>
                 <div class="glass-card p-4 rounded-2xl">
                     <h3 class="text-xs font-bold text-slate-200 mb-2 flex items-center gap-1.5">
@@ -452,18 +474,21 @@
 
             // 1) โหลดกลางวัน/กลางคืน: แบ่งแต่ละรอบตามสัดส่วนชั่วโมงที่ตกในกลางวัน/คืน
             let dayU = 0, dayH = 0, nightU = 0, nightH = 0;
+            const loads = [];
             for (let i = 1; i < meterLogs.length; i++) {
                 const a = meterLogs[i - 1], b = meterLogs[i];
                 if (!a._t || !b._t || b._t.getTime() < cutoff) continue;
                 const hours = (b._t - a._t) / 3.6e6;
                 const units = (b.eDel - a.eDel) * 1000;
                 if (hours <= 0 || hours > 24 || units < 0) continue;   // ข้ามรอบที่ห่างเกิน 24 ชม.
+                loads.push({ kw: units / hours, a: a.datetime, b: b.datetime, hours });
                 const dH = dayHoursIn(a._t.getTime(), b._t.getTime());
                 dayU += units * dH / hours; dayH += dH;
                 nightU += units * (hours - dH) / hours; nightH += hours - dH;
             }
             rates.day = dayH >= 1 ? dayU / dayH : null;
             rates.night = nightH >= 1 ? nightU / nightH : null;
+            rates.dayU = dayU; rates.nightU = nightU; rates.loads = loads;
 
             // 2) ค่าเฉลี่ยต่อวัน จาก 14 วันล่าสุด
             let ref = meterLogs.find(l => l._t && l._t.getTime() >= cutoff);
@@ -630,7 +655,34 @@
             return document.documentElement.classList.contains('light') ? '#334155' : '#94a3b8';
         }
 
+        function renderDayNightDetail() {
+            const price = getUnitPrice();
+            const d = rates.day, n = rates.night, sample = d == null || n == null;
+            const dv = d ?? DEFAULT_DAY_RATE, nv = n ?? DEFAULT_NIGHT_RATE;
+            const dKwh = dv * 12, nKwh = nv * 12, tot = dKwh + nKwh;       // พลังงานต่อวัน (ช่วงละ 12 ชม.)
+            $('dnCenterVal').textContent = formatNum(tot / 24, 1);
+            $('dnDayPct').textContent = formatNum(dKwh / tot * 100, 0) + '%';
+            $('dnNightPct').textContent = formatNum(nKwh / tot * 100, 0) + '%';
+            const line = (kw, kwh) => formatNum(kw, 1) + ' kW · ≈ ' + formatNum(kwh, 0) + ' kWh/วัน · ≈ ' + formatNum(kwh * price, 0) + ' ฿/วัน';
+            $('dnDayDetail').textContent = line(dv, dKwh);
+            $('dnNightDetail').textContent = line(nv, nKwh);
+            const extra = [];
+            extra.push('รวมเฉลี่ย ≈ ' + formatNum(tot, 0) + ' kWh/วัน · ≈ ' + formatNum(tot * price, 0) + ' ฿/วัน');
+            if (!sample && Math.abs(d - n) > 0.05) extra.push('กลางวันใช้' + (d > n ? 'มากกว่า' : 'น้อยกว่า') + 'กลางคืน ' + formatNum(Math.abs(d - n), 1) + ' kW (' + formatNum(Math.abs(d / n - 1) * 100, 1) + '%)');
+            const loads = rates.loads || [];
+            if (loads.length >= 2) {
+                const hi = loads.reduce((x, y) => y.kw > x.kw ? y : x), lo = loads.reduce((x, y) => y.kw < x.kw ? y : x);
+                extra.push('รอบที่โหลดสูงสุด ' + formatNum(hi.kw, 1) + ' kW (' + hi.a + ' → ' + hi.b + ')');
+                extra.push('รอบที่โหลดต่ำสุด ' + formatNum(lo.kw, 1) + ' kW (' + lo.a + ' → ' + lo.b + ')');
+            }
+            $('dnExtra').innerHTML = extra.map(t => '<div>• ' + esc(t) + '</div>').join('');
+            $('dnNote').textContent = sample
+                ? 'ข้อมูล 14 วันล่าสุดยังไม่พอ จึงแสดงค่าตัวอย่าง (ไม่ใช่ค่าจริง)'
+                : 'คำนวณจาก ' + loads.length + ' รอบการอ่านใน 14 วันล่าสุด · แต่ละรอบแบ่งตามชั่วโมงกลางวัน/กลางคืนจริง · ค่าเป็นค่าประมาณเพราะอ่านมิเตอร์วันละ 2 ครั้ง';
+        }
+
         function updateCharts() {
+            renderDayNightDetail();
             Chart.defaults.color = chartTextColor();
             const months = monthsCache.length ? monthsCache : null;
             // ไม่มีข้อมูลเวลาครบ: แสดงรายการดิบเหมือนเดิม
@@ -652,7 +704,7 @@
                 charts.dn = new Chart($('dayNightChart'), {
                     type: 'doughnut',
                     data: { labels: ['กลางวัน', 'กลางคืน'], datasets: [{ data: dn, backgroundColor: ['#f59e0b', '#6366f1'], borderWidth: 0 }] },
-                    options: { responsive: true, maintainAspectRatio: false, cutout: '70%', plugins: { legend: { display: false } } }
+                    options: { responsive: true, maintainAspectRatio: false, cutout: '70%', plugins: { legend: { display: false }, tooltip: { callbacks: { label: c => ' ' + c.label + ': ' + formatNum(c.parsed, 1) + ' kW' } } } }
                 });
                 charts.per = new Chart($('periodConsumptionChart'), {
                     type: 'bar',
